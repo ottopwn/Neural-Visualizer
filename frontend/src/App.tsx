@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { useWorkspace, type WorkspaceMode } from './app/workspace';
 import { CinemaMode } from './components/CinemaMode';
 import { PassExplorer } from './components/Forge/Explorer/PassExplorer';
+import { Forge3DView } from './components/Forge/ThreeD/Forge3DView';
 import { TimeMachineView } from './components/Forge/TimeMachine/TimeMachineView';
 import { ExperimentPanel } from './components/Shell/ExperimentPanel';
 import { InspectorPanel } from './components/Shell/InspectorPanel';
@@ -14,7 +15,7 @@ import { onForgeGraph } from './forge/store';
 import { useNetworkStore } from './store/networkStore';
 
 /** Workspaces that are always available. Others register below when they exist. */
-const AVAILABLE: Set<WorkspaceMode> = new Set(['network', 'timemachine', 'explorer', 'analysis']);
+const AVAILABLE: Set<WorkspaceMode> = new Set(['network', 'timemachine', 'explorer', '3d', 'analysis']);
 
 function Loading() {
   return (
@@ -29,6 +30,7 @@ function Workspace({ mode, onCinema }: { mode: WorkspaceMode; onCinema: () => vo
     case 'network': return <NetworkWorkspace />;
     case 'timemachine': return <TimeMachineView />;
     case 'explorer': return <PassExplorer />;
+    case '3d': return <Forge3DView />;
     case 'analysis': return <AnalysisWorkspace onCinema={onCinema} />;
     default: return <NetworkWorkspace />;
   }
