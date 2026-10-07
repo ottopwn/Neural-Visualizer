@@ -8,6 +8,7 @@ Layering (each module only imports from the ones above it)::
     session        a model + dataset + training + checkpoints
     schema         wire contract (pydantic models only)
     introspect     session -> schema payloads (the only torch <-> UI bridge)
+    timemachine    read-only views of stored checkpoints (history, A/B compare)
     api            FastAPI router
 
 See docs/ARCHITECTURE.md for the full picture.

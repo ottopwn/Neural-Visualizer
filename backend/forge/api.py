@@ -11,9 +11,11 @@ from pydantic import BaseModel, Field
 from datasets import generate_dataset
 
 from . import schema as S
+from .checkpoints import DEFAULT_CAPACITY
 from .introspect import IntrospectionError, MLPIntrospector
 from .mlp import SUPPORTED_ACTIVATIONS, MLPSpec
 from .session import ModelSession, SessionRegistry, TrainingSettings, create_session
+from .timemachine import TimeMachine
 
 router = APIRouter(prefix="/api/forge", tags=["forge"])
 registry = SessionRegistry(max_sessions=8)
@@ -83,6 +85,7 @@ def capabilities():
         "supported_model_types": ["ANN"],
         "activations": list(SUPPORTED_ACTIVATIONS),
         "interventions": ["ablate_neuron", "set_weight", "set_bias"],
+        "time_machine": {"checkpoint_capacity": DEFAULT_CAPACITY, "interventions_in_history": False},
         "limits": {"max_neurons": MAX_NEURONS, "max_layers": MAX_LAYERS},
         "unsupported_note": (
             "CNN, RNN, LSTM, GAN, Transformer and Diffuser graphs are illustrative "
@@ -166,3 +169,39 @@ def inspect(session_id: str, req: S.InspectRequest):
 @router.post("/sessions/{session_id}/compare", response_model=S.Comparison)
 def compare(session_id: str, req: S.ExperimentRequest):
     return _with_session(session_id, lambda i: i.compare(req))
+
+
+# ── Training Time Machine ───────────────────────────────────────────────────
+# Read-only views of stored checkpoints; interventions are never applied.
+
+def _with_time_machine(session_id: str, fn):
+    session = _get(session_id)
+    with session.lock:
+        try:
+            return fn(TimeMachine(session))
+        except IntrospectionError as exc:
+            raise _bad(exc)
+
+
+@router.get("/sessions/{session_id}/timeline", response_model=S.Timeline)
+def timeline(session_id: str):
+    """Training log, per-checkpoint health statistics, runs and notable events."""
+    return _with_time_machine(session_id, lambda tm: tm.timeline())
+
+
+@router.post("/sessions/{session_id}/frame", response_model=S.Frame)
+def frame(session_id: str, req: S.FrameRequest):
+    """The network at one stored checkpoint: metrics, predictions, decision boundary."""
+    return _with_time_machine(session_id, lambda tm: tm.frame(req))
+
+
+@router.post("/sessions/{session_id}/component-history", response_model=S.ComponentHistory)
+def component_history(session_id: str, req: S.ComponentHistoryRequest):
+    """One neuron / layer / connection across every stored checkpoint."""
+    return _with_time_machine(session_id, lambda tm: tm.component_history(req))
+
+
+@router.post("/sessions/{session_id}/epoch-compare", response_model=S.EpochComparison)
+def epoch_compare(session_id: str, req: S.EpochCompareRequest):
+    """Real differences between two stored checkpoints (A -> B)."""
+    return _with_time_machine(session_id, lambda tm: tm.compare(req))

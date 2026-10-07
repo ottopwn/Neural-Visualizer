@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { classColor, diverging, sequential, type RGB } from '../../forge/format';
 import { useForgeStore } from '../../forge/store';
 import type { ResponseMap } from '../../forge/types';
@@ -21,4 +21,18 @@ export function responseColor(map: ResponseMap, classIndex: number | null): (v: 
     return (v) => diverging(v, m);
   }
   return (v) => sequential(v, 0, hi);
+}
+
+/** Width of an element, tracked with a ResizeObserver. */
+export function useElementWidth<T extends HTMLElement>(initial = 300): [React.RefObject<T | null>, number] {
+  const ref = useRef<T>(null);
+  const [w, setW] = useState(initial);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([entry]) => setW(Math.max(120, Math.round(entry.contentRect.width))));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, w];
 }

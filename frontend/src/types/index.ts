@@ -102,4 +102,4 @@ export interface LossLandscapeData {
   loss: number[][];
 }
 
-export type TabId = 'architecture' | 'forward' | 'backward' | 'decision' | 'loss' | 'training' | 'live-train' | 'compare' | 'attention' | 'weights' | 'layer-act' | 'sweep' | 'pruning' | 'custom-act' | 'export' | 'microscope';
+export type TabId = 'architecture' | 'forward' | 'backward' | 'decision' | 'loss' | 'training' | 'live-train' | 'compare' | 'attention' | 'weights' | 'layer-act' | 'sweep' | 'pruning' | 'custom-act' | 'export' | 'microscope' | 'timemachine';

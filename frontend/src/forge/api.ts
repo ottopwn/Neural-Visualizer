@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type {
-  ComponentRef, Comparison, ExperimentRequest, ForgeGraph, HistoryRow, Inspection, SessionSummary,
+  ComponentHistory, ComponentRef, Comparison, EpochComparison, ExperimentRequest, ForgeGraph, Frame,
+  HistoryRow, Inspection, Probe, SessionSummary, Timeline,
 } from './types';
 
 const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -37,6 +38,26 @@ export const inspect = (id: string, ref: ComponentRef, req: ExperimentRequest): 
 
 export const compare = (id: string, req: ExperimentRequest): Promise<Comparison> =>
   http.post(`/sessions/${id}/compare`, req).then((r) => r.data);
+
+// ── Training Time Machine (read-only views of stored checkpoints) ──────────
+// Every call accepts an AbortSignal so a superseded request can be cancelled.
+
+export const fetchTimeline = (id: string, signal?: AbortSignal): Promise<Timeline> =>
+  http.get(`/sessions/${id}/timeline`, { signal }).then((r) => r.data);
+
+export const fetchFrame = (id: string, checkpointEpoch: number | null, probe: Probe, signal?: AbortSignal): Promise<Frame> =>
+  http.post(`/sessions/${id}/frame`, { checkpoint_epoch: checkpointEpoch, probe }, { signal }).then((r) => r.data);
+
+export const fetchComponentHistory = (id: string, ref: ComponentRef, probe: Probe, signal?: AbortSignal): Promise<ComponentHistory> =>
+  http.post(`/sessions/${id}/component-history`, { ref, probe }, { signal }).then((r) => r.data);
+
+export const fetchEpochComparison = (
+  id: string, body: { epoch_a: number; epoch_b: number | null; probe: Probe; ref: ComponentRef | null }, signal?: AbortSignal,
+): Promise<EpochComparison> =>
+  http.post(`/sessions/${id}/epoch-compare`, body, { signal }).then((r) => r.data);
+
+/** True for errors caused by cancelling a superseded request. */
+export const isCancel = (err: unknown): boolean => axios.isCancel(err);
 
 /** Human-readable message from an API error (FastAPI puts it in `detail`). */
 export function errorMessage(err: unknown): string {

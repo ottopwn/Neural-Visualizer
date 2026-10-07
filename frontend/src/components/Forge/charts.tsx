@@ -4,9 +4,15 @@ import { useEffect, useMemo, useRef } from 'react';
 import { sampleCurve } from '../../forge/activations';
 import { CLASS0, CLASS1, fmt, fmtSigned, maxAbs, rankByMagnitude, rgb, type RGB } from '../../forge/format';
 import type { Histogram } from '../../forge/types';
+import { useElementWidth } from './hooks';
 
 // ── Heatmap on canvas ───────────────────────────────────────────────────────
-export interface ScatterPoint { x: number; y: number; cls: number }
+export interface ScatterPoint {
+  x: number;
+  y: number;
+  cls: number;
+  ring?: string; // optional emphasis ring (e.g. misclassified / changed samples)
+}
 
 interface HeatmapProps {
   values: number[][]; // values[row][col], row 0 = bottom (y_range[0])
@@ -19,10 +25,14 @@ interface HeatmapProps {
   onPick?: (x: number, y: number) => void;
   ariaLabel: string;
   flipY?: boolean; // weight matrices: row 0 at the top
+  contour?: number | null; // draw the iso-line value = contour (e.g. 0.5 = decision boundary)
+  pointStroke?: string;
+  contourColor?: string;
 }
 
 export function HeatmapCanvas({
   values, color, xRange, yRange, points, marker, height = 160, onPick, ariaLabel, flipY = false,
+  contour = null, pointStroke = 'rgba(255,255,255,0.55)', contourColor = 'rgba(255,255,255,0.9)',
 }: HeatmapProps) {
   const ref = useRef<HTMLCanvasElement>(null);
   const rows = values.length;
@@ -49,6 +59,37 @@ export function HeatmapCanvas({
         ctx.fillRect(c * cw, py, Math.ceil(cw) + 0.5, Math.ceil(ch) + 0.5);
       }
     }
+    if (contour !== null) {
+      // Iso-line between adjacent cells whose values straddle `contour`,
+      // placed by linear interpolation between the two cell centres.
+      ctx.strokeStyle = contourColor;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const rowY = (r: number) => (flipY ? r * ch : h - (r + 1) * ch);
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const v = values[r][c];
+          if (c + 1 < cols) {
+            const v2 = values[r][c + 1];
+            if ((v - contour) * (v2 - contour) < 0) {
+              const x = (c + 0.5 + (contour - v) / (v2 - v)) * cw;
+              ctx.moveTo(x, rowY(r));
+              ctx.lineTo(x, rowY(r) + ch);
+            }
+          }
+          if (r + 1 < rows) {
+            const v2 = values[r + 1][c];
+            if ((v - contour) * (v2 - contour) < 0) {
+              const t = (contour - v) / (v2 - v);
+              const y = flipY ? (r + 0.5 + t) * ch : h - (r + 0.5 + t) * ch;
+              ctx.moveTo(c * cw, y);
+              ctx.lineTo((c + 1) * cw, y);
+            }
+          }
+        }
+      }
+      ctx.stroke();
+    }
     if (!xRange || !yRange) return;
     const px = (x: number) => ((x - xRange[0]) / (xRange[1] - xRange[0])) * w;
     const py = (y: number) => h - ((y - yRange[0]) / (yRange[1] - yRange[0])) * h;
@@ -57,9 +98,16 @@ export function HeatmapCanvas({
       ctx.arc(px(p.x), py(p.y), 2.2, 0, Math.PI * 2);
       ctx.fillStyle = rgb(p.cls === 1 ? CLASS1 : CLASS0, 0.9);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.strokeStyle = pointStroke;
       ctx.lineWidth = 0.6;
       ctx.stroke();
+      if (p.ring) {
+        ctx.beginPath();
+        ctx.arc(px(p.x), py(p.y), 4.6, 0, Math.PI * 2);
+        ctx.strokeStyle = p.ring;
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+      }
     });
     if (marker) {
       const [mx, my] = [px(marker[0]), py(marker[1])];
@@ -73,7 +121,7 @@ export function HeatmapCanvas({
       ctx.moveTo(mx, my + 3); ctx.lineTo(mx, my + 10);
       ctx.stroke();
     }
-  }, [values, color, xRange, yRange, points, marker, rows, cols, flipY]);
+  }, [values, color, xRange, yRange, points, marker, rows, cols, flipY, contour, pointStroke, contourColor]);
 
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!onPick || !xRange || !yRange) return;
@@ -96,8 +144,8 @@ export function HeatmapCanvas({
 }
 
 // ── Histogram ───────────────────────────────────────────────────────────────
-export function MiniHistogram({ hist, marker, color = '#60a5fa', height = 56 }: {
-  hist: Histogram; marker?: number | null; color?: string; height?: number;
+export function MiniHistogram({ hist, marker, color = '#60a5fa', height = 56, markerLabel = 'probe' }: {
+  hist: Histogram; marker?: number | null; color?: string; height?: number; markerLabel?: string;
 }) {
   const W = 260;
   const max = Math.max(1, ...hist.counts);
@@ -115,7 +163,7 @@ export function MiniHistogram({ hist, marker, color = '#60a5fa', height = 56 }: 
       {mx !== null && mx >= 0 && mx <= W && (
         <g>
           <line x1={mx} x2={mx} y1={0} y2={height} stroke="#fde047" strokeWidth={1.5} />
-          <text x={Math.min(W - 30, Math.max(0, mx - 15))} y={8} fontSize={8} fill="#fde047">probe</text>
+          <text x={Math.min(W - 30, Math.max(0, mx - 15))} y={8} fontSize={8} fill="#fde047">{markerLabel}</text>
         </g>
       )}
       <text x={0} y={height + 11} fontSize={8} fill="var(--text-muted)">{fmt(lo, 2)}</text>
@@ -270,6 +318,82 @@ export function KV({ k, v, mono = true, color }: { k: string; v: React.ReactNode
     <div className="flex items-baseline justify-between gap-3 text-[11px] py-0.5">
       <span style={{ color: 'var(--text-muted)' }}>{k}</span>
       <span className={mono ? 'font-mono' : ''} style={{ color: color ?? 'var(--text-primary)' }}>{v}</span>
+    </div>
+  );
+}
+
+// ── One quantity across stored checkpoints ─────────────────────────────────
+/**
+ * Values per stored checkpoint (gaps where a value does not exist, e.g. no
+ * training log at epoch 0).  Points are the checkpoints themselves -- nothing
+ * is drawn between two checkpoints except the straight connecting segment.
+ */
+export function SeriesChart({
+  epochs, values, current, markA, markB, color = '#60a5fa', height = 46, onPick, ariaLabel,
+}: {
+  epochs: number[];
+  values: (number | null)[];
+  current?: number | null;
+  markA?: number | null;
+  markB?: number | null;
+  color?: string;
+  height?: number;
+  onPick?: (epoch: number) => void;
+  ariaLabel: string;
+}) {
+  const [box, W] = useElementWidth<HTMLDivElement>();
+  const P = 4;
+  const H = height;
+  const finite = values.filter((v): v is number => v !== null && Number.isFinite(v));
+  if (!finite.length || epochs.length === 0) {
+    return <div ref={box} className="text-[10px] py-2" style={{ color: 'var(--text-faint)' }}>no data at these checkpoints</div>;
+  }
+  let lo = Math.min(...finite);
+  let hi = Math.max(...finite);
+  if (hi - lo < 1e-12) { lo -= 0.5; hi += 0.5; }
+  const e0 = epochs[0];
+  const e1 = epochs[epochs.length - 1];
+  const sx = (e: number) => P + ((e - e0) / (e1 - e0 || 1)) * (W - 2 * P);
+  const sy = (v: number) => H - P - ((v - lo) / (hi - lo)) * (H - 2 * P);
+  const segments: string[] = [];
+  let seg = '';
+  epochs.forEach((e, i) => {
+    const v = values[i];
+    if (v === null || !Number.isFinite(v)) { if (seg) segments.push(seg); seg = ''; return; }
+    seg += `${seg ? 'L' : 'M'}${sx(e).toFixed(1)},${sy(v).toFixed(1)}`;
+  });
+  if (seg) segments.push(seg);
+  const ci = current !== null && current !== undefined ? epochs.indexOf(current) : -1;
+  const cv = ci >= 0 ? values[ci] : null;
+  const zeroInside = lo < 0 && hi > 0;
+
+  const pick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!onPick) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const target = e0 + (((e.clientX - rect.left) / rect.width) * W - P) / (W - 2 * P) * (e1 - e0);
+    let best = epochs[0];
+    for (const ep of epochs) if (Math.abs(ep - target) < Math.abs(best - target)) best = ep;
+    onPick(best);
+  };
+
+  return (
+    <div ref={box} className="w-full">
+    <svg width={W} height={H} className="block" style={{ cursor: onPick ? 'pointer' : 'default' }}
+      role="img" aria-label={ariaLabel} onClick={pick}>
+      {zeroInside && <line x1={P} x2={W - P} y1={sy(0)} y2={sy(0)} stroke="var(--border-soft)" strokeDasharray="2,3" />}
+      {markA !== null && markA !== undefined && <line x1={sx(markA)} x2={sx(markA)} y1={0} y2={H} stroke="var(--tm-a)" strokeDasharray="3,2" />}
+      {markB !== null && markB !== undefined && <line x1={sx(markB)} x2={sx(markB)} y1={0} y2={H} stroke="var(--tm-b)" strokeDasharray="3,2" />}
+      {segments.map((d, i) => <path key={i} d={d} fill="none" stroke={color} strokeWidth={1.5} />)}
+      {epochs.map((e, i) => (values[i] !== null && Number.isFinite(values[i]!)
+        ? <circle key={e} cx={sx(e)} cy={sy(values[i]!)} r={1.6} fill={color} />
+        : null))}
+      {ci >= 0 && (
+        <>
+          <line x1={sx(epochs[ci])} x2={sx(epochs[ci])} y1={0} y2={H} stroke="var(--text-primary)" strokeOpacity={0.6} />
+          {cv !== null && Number.isFinite(cv) && <circle cx={sx(epochs[ci])} cy={sy(cv)} r={3} fill={color} stroke="var(--bg-card)" strokeWidth={1} />}
+        </>
+      )}
+    </svg>
     </div>
   );
 }

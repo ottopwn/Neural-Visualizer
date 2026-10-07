@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Network, Play, ArrowRight, ArrowLeft, Target, Mountain, TrendingUp,
   Loader2, AlertCircle, CheckCircle2, Zap, Box, Cpu, GitCompare, Focus,
-  BarChart2, Layers, Sliders, Scissors, PenTool, Code2, Microscope,
+  BarChart2, Layers, Sliders, Scissors, PenTool, Code2, Microscope, History,
 } from 'lucide-react';
 
 import { Header } from './components/Layout/Header';
@@ -29,6 +29,7 @@ import { ExportCode } from './components/Visualizations/ExportCode';
 import { CinemaMode } from './components/CinemaMode';
 import { Tutorial } from './components/Tutorial';
 import { MicroscopeView } from './components/Forge/MicroscopeView';
+import { TimeMachineView } from './components/Forge/TimeMachine/TimeMachineView';
 
 import { useNetworkStore } from './store/networkStore';
 import * as api from './api/client';
@@ -39,6 +40,7 @@ import type { DecisionBoundaryData, TabId, TrainingResult } from './types';
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode; group: string }[] = [
   { id: 'microscope',   label: 'Microscope',   icon: <Microscope size={12} />, group: 'Forge' },
+  { id: 'timemachine',  label: 'Time Machine', icon: <History size={12} />,    group: 'Forge' },
   { id: 'architecture', label: 'Architecture', icon: <Network size={12} />,    group: 'Network' },
   { id: 'forward',      label: 'Forward',      icon: <ArrowRight size={12} />, group: 'Network' },
   { id: 'backward',     label: 'Backprop',     icon: <ArrowLeft size={12} />,  group: 'Network' },
@@ -355,6 +357,15 @@ function TabContent({ tab }: { tab: TabId }) {
         <div className="flex-1 min-h-0 p-3"><MicroscopeView /></div>
       </div>
     );
+    case 'timemachine':  return (
+      <div className="card h-full flex flex-col">
+        <div className="card-header flex-shrink-0">
+          <span className="badge badge-purple">Training Time Machine</span>
+          <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Travel through the real learning process</span>
+        </div>
+        <div className="flex-1 min-h-0 p-3"><TimeMachineView /></div>
+      </div>
+    );
     case 'architecture': return panel('Network Architecture', '3D/2D', 'badge-blue',   <NetworkView mode="architecture" />);
     case 'forward':      return panel('Forward Propagation',  'Forward', 'badge-green',  <PropagationView steps={store.forwardSteps}  mode="forward"   NetworkViewComponent={NetworkView} />);
     case 'backward':     return panel('Backpropagation',      'Backward','badge-orange', <PropagationView steps={store.backwardSteps} mode="backward"  NetworkViewComponent={NetworkView} />);
@@ -396,6 +407,11 @@ const GRAPH_TABS: TabId[] = ['architecture', 'forward', 'backward', 'weights', '
 
 function SourceBadge({ source }: { source: 'model' | 'illustrative' }) {
   const real = source === 'model';
+  const checkpointEpoch = useForgeStore((s) => s.checkpointEpoch);
+  const nInterventions = useForgeStore((s) => s.interventions.length);
+  const detail = real
+    ? [checkpointEpoch !== null ? `checkpoint epoch ${checkpointEpoch}` : null, nInterventions ? `${nInterventions} what-if` : null].filter(Boolean).join(' · ')
+    : '';
   return (
     <span
       className="text-[10px] px-1.5 py-0.5 rounded border"
@@ -406,7 +422,7 @@ function SourceBadge({ source }: { source: 'model' | 'illustrative' }) {
         ? { borderColor: 'rgba(16,185,129,0.4)', color: '#6ee7b7', background: 'rgba(16,185,129,0.08)' }
         : { borderColor: 'rgba(245,158,11,0.4)', color: '#fcd34d', background: 'rgba(245,158,11,0.08)' }}
     >
-      {real ? 'REAL MODEL VALUES' : 'ILLUSTRATIVE VALUES'}
+      {real ? `REAL MODEL VALUES${detail ? ` · ${detail}` : ''}` : 'ILLUSTRATIVE VALUES'}
     </span>
   );
 }

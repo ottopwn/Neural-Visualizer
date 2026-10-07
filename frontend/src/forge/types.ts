@@ -214,7 +214,13 @@ export interface Comparison {
   boundary: BoundaryPair | null;
 }
 
-export interface HistoryRow { epoch: number; loss: number; accuracy: number }
+export interface HistoryRow {
+  epoch: number;
+  loss: number;
+  accuracy: number;
+  grad_norm?: number | null; // mean L2 norm of the training gradient during the epoch
+  update_norm?: number | null; // ||θ_end − θ_start|| over the epoch
+}
 
 export interface SessionSummary {
   session_id: string;
@@ -234,4 +240,148 @@ export interface ForgeGraph {
   backward_steps: PropStep[];
   probe: ResolvedProbe;
   provenance: Provenance;
+}
+
+// ── Training Time Machine (mirror of the time-machine part of schema.py) ─────
+// Always computed from stored, immutable checkpoints or the real training log;
+// what-if interventions are never applied to these payloads.
+
+export interface TimelineRow extends HistoryRow {
+  layer_grad_norms?: number[] | null;
+  layer_update_norms?: number[] | null;
+}
+
+export interface LayerHealth {
+  layer: number;
+  label: string;
+  activation: string | null;
+  weight_norm: number;
+  bias_norm: number;
+  param_norm: number;
+  train_grad_norm: number | null;
+  update_norm: number | null;
+  update_ratio: number | null;
+  mean_abs_activation: number | null;
+  zero_fraction: number | null;
+  dead_fraction: number | null;
+  saturated_fraction: number | null;
+}
+
+export interface CheckpointHealth { epoch: number; loss: number; accuracy: number; layers: LayerHealth[] }
+
+export interface TrainingRun {
+  start_epoch: number;
+  end_epoch: number;
+  learning_rate: number;
+  batch_size: number;
+  reg_type: string;
+  reg_rate: number;
+}
+
+export type TrainingEventKind = 'init' | 'run' | 'acc_threshold' | 'best_accuracy' | 'min_loss' | 'largest_drop';
+
+export interface TrainingEvent { epoch: number; checkpoint_epoch: number; kind: TrainingEventKind; label: string }
+
+export interface Timeline {
+  live_epoch: number;
+  capacity: number;
+  history: TimelineRow[];
+  checkpoints: CheckpointHealth[];
+  runs: TrainingRun[];
+  events: TrainingEvent[];
+  majority_rate: number;
+}
+
+export interface FramePrevious {
+  epoch: number;
+  loss: number;
+  accuracy: number;
+  changed: number;
+  fixed: number;
+  broken: number;
+  boundary_flip_fraction: number | null;
+}
+
+export interface Frame {
+  epoch: number;
+  is_latest: boolean;
+  loss: number;
+  accuracy: number;
+  probe: ResolvedProbe;
+  probe_probabilities: number[];
+  probe_predicted: number;
+  predictions: number[];
+  confidence: number[];
+  boundary: ResponseMap | null;
+  previous: FramePrevious | null;
+}
+
+export type SeriesGroup = 'parameter' | 'probe' | 'dataset' | 'gradient';
+
+export interface Series { key: string; label: string; group: SeriesGroup; values: (number | null)[] }
+
+export interface ComponentHistory {
+  ref: ComponentRef;
+  name: string;
+  epochs: number[];
+  series: Series[];
+  notes: string[];
+}
+
+export interface EpochMetrics {
+  epoch: number;
+  loss: number;
+  accuracy: number;
+  mean_confidence: number;
+  probe_probabilities: number[];
+  probe_predicted: number;
+}
+
+export interface ParamChange {
+  layer: number;
+  label: string;
+  weight_norm_a: number;
+  weight_norm_b: number;
+  bias_norm_a: number;
+  bias_norm_b: number;
+  weight_delta_norm: number;
+  bias_delta_norm: number;
+  relative_change: number;
+  mean_abs_weight_delta: number;
+  max_abs_weight_delta: number;
+  top_neurons: number[];
+  top_neuron_deltas: number[];
+}
+
+export interface ComponentDeltaRow { key: string; label: string; group: SeriesGroup; a: number | null; b: number | null; delta: number | null }
+
+export interface ComponentCompare {
+  ref: ComponentRef;
+  name: string;
+  rows: ComponentDeltaRow[];
+  response_a: ResponseMap | null;
+  response_b: ResponseMap | null;
+}
+
+export interface EpochComparison {
+  a: EpochMetrics;
+  b: EpochMetrics;
+  probe: ResolvedProbe;
+  loss_delta: number;
+  accuracy_delta: number;
+  changed: number;
+  changed_fraction: number;
+  fixed: number;
+  broken: number;
+  changed_indices: number[];
+  predictions_a: number[];
+  predictions_b: number[];
+  confidence_delta: number[];
+  boundary_a: ResponseMap | null;
+  boundary_b: ResponseMap | null;
+  boundary_flip_fraction: number | null;
+  layers: ParamChange[];
+  total_delta_norm: number;
+  total_relative_change: number;
+  component: ComponentCompare | null;
 }

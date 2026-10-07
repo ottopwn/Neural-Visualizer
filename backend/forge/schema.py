@@ -305,6 +305,8 @@ class HistoryRow(BaseModel):
     epoch: int
     loss: float
     accuracy: float
+    grad_norm: Optional[float] = Field(None, description="Mean L2 norm of the training gradient during this epoch")
+    update_norm: Optional[float] = Field(None, description="||theta_end - theta_start|| over this epoch")
 
 
 class SessionSummary(BaseModel):
@@ -316,3 +318,188 @@ class SessionSummary(BaseModel):
     epoch: int
     history: List[HistoryRow]
     checkpoints: List[HistoryRow]
+
+
+# ── Training Time Machine ───────────────────────────────────────────────────
+# Everything below is computed from *stored* parameters (checkpoints are
+# immutable) or from statistics logged during real training.  Interventions
+# are never applied here: the time machine shows history as it happened.
+
+class TimelineRow(HistoryRow):
+    """One epoch of the training log (every epoch, not only stored ones)."""
+
+    layer_grad_norms: Optional[List[float]] = None
+    layer_update_norms: Optional[List[float]] = None
+
+
+class LayerHealth(BaseModel):
+    layer: int
+    label: str
+    activation: Optional[str]
+    weight_norm: float
+    bias_norm: float
+    param_norm: float = Field(..., description="sqrt(||W||^2 + ||b||^2)")
+    train_grad_norm: Optional[float] = Field(None, description="Logged training gradient norm for this epoch")
+    update_norm: Optional[float] = Field(None, description="Logged parameter change over this epoch")
+    update_ratio: Optional[float] = Field(None, description="update_norm / param_norm")
+    mean_abs_activation: Optional[float] = Field(None, description="Hidden layers: mean |a| over dataset x neurons")
+    zero_fraction: Optional[float] = Field(None, description="Hidden layers: fraction of (sample, neuron) outputs with |a| < 1e-6")
+    dead_fraction: Optional[float] = Field(None, description="Hidden layers: fraction of neurons that output 0 on every sample")
+    saturated_fraction: Optional[float] = Field(
+        None, description="Sigmoid/Tanh layers: fraction of outputs within 1% of an asymptote")
+
+
+class CheckpointHealth(BaseModel):
+    epoch: int
+    loss: float
+    accuracy: float
+    layers: List[LayerHealth]
+
+
+class TrainingRun(BaseModel):
+    start_epoch: int
+    end_epoch: int
+    learning_rate: float
+    batch_size: int
+    reg_type: str
+    reg_rate: float
+
+
+class TrainingEvent(BaseModel):
+    epoch: int = Field(..., description="Epoch of the event in the training log")
+    checkpoint_epoch: int = Field(..., description="Nearest stored checkpoint (what the UI can jump to)")
+    kind: Literal["init", "run", "acc_threshold", "best_accuracy", "min_loss", "largest_drop"]
+    label: str
+
+
+class Timeline(BaseModel):
+    live_epoch: int
+    capacity: int
+    history: List[TimelineRow]
+    checkpoints: List[CheckpointHealth]
+    runs: List[TrainingRun]
+    events: List[TrainingEvent]
+    majority_rate: float = Field(..., description="Accuracy of always predicting the most common class")
+
+
+class FrameRequest(BaseModel):
+    checkpoint_epoch: Optional[int] = Field(None, description="Stored checkpoint; null = live weights")
+    probe: Probe = Field(default_factory=lambda: Probe(sample_index=0))
+
+
+class FramePrevious(BaseModel):
+    epoch: int
+    loss: float
+    accuracy: float
+    changed: int = Field(..., description="Samples whose predicted class differs from the previous checkpoint")
+    fixed: int = Field(..., description="Wrong at the previous checkpoint, right now")
+    broken: int = Field(..., description="Right at the previous checkpoint, wrong now")
+    boundary_flip_fraction: Optional[float] = None
+
+
+class Frame(BaseModel):
+    """What the network looked like at one stored checkpoint."""
+
+    epoch: int
+    is_latest: bool
+    loss: float
+    accuracy: float
+    probe: ResolvedProbe
+    probe_probabilities: List[float]
+    probe_predicted: int
+    predictions: List[int] = Field(..., description="Predicted class of every dataset sample")
+    confidence: List[float] = Field(..., description="Probability of the predicted class, per sample")
+    boundary: Optional[ResponseMap] = Field(None, description="P(class 1) over the input plane (2-D inputs)")
+    previous: Optional[FramePrevious] = None
+
+
+class ComponentHistoryRequest(BaseModel):
+    ref: ComponentRef
+    probe: Probe = Field(default_factory=lambda: Probe(sample_index=0))
+
+
+class Series(BaseModel):
+    key: str
+    label: str
+    group: Literal["parameter", "probe", "dataset", "gradient"]
+    values: List[Optional[float]]
+
+
+class ComponentHistory(BaseModel):
+    ref: ComponentRef
+    name: str
+    epochs: List[int]
+    series: List[Series]
+    notes: List[str] = Field(default_factory=list)
+
+
+class EpochCompareRequest(BaseModel):
+    epoch_a: int
+    epoch_b: Optional[int] = Field(None, description="null = live weights")
+    probe: Probe = Field(default_factory=lambda: Probe(sample_index=0))
+    ref: Optional[ComponentRef] = None
+
+
+class EpochMetrics(BaseModel):
+    epoch: int
+    loss: float
+    accuracy: float
+    mean_confidence: float
+    probe_probabilities: List[float]
+    probe_predicted: int
+
+
+class ParamChange(BaseModel):
+    layer: int
+    label: str
+    weight_norm_a: float
+    weight_norm_b: float
+    bias_norm_a: float
+    bias_norm_b: float
+    weight_delta_norm: float = Field(..., description="||W_B - W_A||")
+    bias_delta_norm: float = Field(..., description="||b_B - b_A||")
+    relative_change: float = Field(..., description="||theta_B - theta_A|| / ||theta_A||")
+    mean_abs_weight_delta: float
+    max_abs_weight_delta: float
+    top_neurons: List[int] = Field(..., description="Neurons whose incoming weights + bias changed most")
+    top_neuron_deltas: List[float]
+
+
+class ComponentDeltaRow(BaseModel):
+    key: str
+    label: str
+    group: str
+    a: Optional[float]
+    b: Optional[float]
+    delta: Optional[float]
+
+
+class ComponentCompare(BaseModel):
+    ref: ComponentRef
+    name: str
+    rows: List[ComponentDeltaRow]
+    response_a: Optional[ResponseMap] = None
+    response_b: Optional[ResponseMap] = None
+
+
+class EpochComparison(BaseModel):
+    a: EpochMetrics
+    b: EpochMetrics
+    probe: ResolvedProbe
+    loss_delta: float
+    accuracy_delta: float
+    changed: int
+    changed_fraction: float
+    fixed: int
+    broken: int
+    changed_indices: List[int]
+    predictions_a: List[int]
+    predictions_b: List[int]
+    confidence_delta: List[float] = Field(..., description="Per sample: P_B(true label) - P_A(true label)")
+    boundary_a: Optional[ResponseMap] = None
+    boundary_b: Optional[ResponseMap] = None
+    boundary_flip_fraction: Optional[float] = None
+    layers: List[ParamChange]
+    total_delta_norm: float
+    total_relative_change: float
+    component: Optional[ComponentCompare] = None

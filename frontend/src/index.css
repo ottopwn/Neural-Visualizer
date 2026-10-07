@@ -63,6 +63,30 @@
   --grid-line:    #e5e7eb;
 }
 
+/* ── Training Time Machine tokens ──────────────────────────────────
+   live = green (as the REAL badge), historical = indigo, what-if = amber
+   (as M1 edits), A/B = cyan/fuchsia.  Text variants are darker in Paper. */
+:root {
+  --tm-live: #10b981;       --tm-live-text: #6ee7b7;
+  --tm-hist: #818cf8;       --tm-hist-text: #c7d2fe;
+  --tm-whatif: #f59e0b;     --tm-whatif-text: #fcd34d;
+  --tm-a: #22d3ee;          --tm-b: #e879f9;
+  --tm-loss: #fb7185;       --tm-acc: #34d399;       --tm-grad: #fbbf24;
+  --tm-pos: #6ee7b7;        --tm-neg: #fca5a5;
+  --tm-panel: rgba(255,255,255,0.02);
+  --tm-overlay: rgba(9,13,19,0.85);
+}
+[data-theme="paper"] {
+  --tm-live: #059669;       --tm-live-text: #047857;
+  --tm-hist: #4f46e5;       --tm-hist-text: #4338ca;
+  --tm-whatif: #d97706;     --tm-whatif-text: #b45309;
+  --tm-a: #0891b2;          --tm-b: #c026d3;
+  --tm-loss: #e11d48;       --tm-acc: #059669;       --tm-grad: #d97706;
+  --tm-pos: #047857;        --tm-neg: #b91c1c;
+  --tm-panel: rgba(15,23,42,0.03);
+  --tm-overlay: rgba(255,255,255,0.9);
+}
+
 /* ── Base ──────────────────────────────────────────────────────────── */
 @layer base {
   * { box-sizing: border-box; }
@@ -128,6 +152,13 @@
   .badge-orange{ @apply badge; background: rgba(249,115,22,0.15); color: #fdba74; border: 1px solid rgba(249,115,22,0.3); }
   .badge-pink  { @apply badge; background: rgba(236,72,153,0.15); color: #f9a8d4; border: 1px solid rgba(236,72,153,0.3); }
 }
+
+/* Badges in the light (Paper) theme: same hues, readable contrast. */
+[data-theme="paper"] .badge-blue   { color: #1d4ed8; }
+[data-theme="paper"] .badge-green  { color: #047857; }
+[data-theme="paper"] .badge-purple { color: #6d28d9; }
+[data-theme="paper"] .badge-orange { color: #c2410c; }
+[data-theme="paper"] .badge-pink   { color: #be185d; }
 
 /* ── Utilities ─────────────────────────────────────────────────────── */
 @layer utilities {

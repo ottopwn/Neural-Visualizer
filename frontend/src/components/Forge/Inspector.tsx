@@ -5,6 +5,8 @@ import { ConnectionPanel } from './ConnectionPanel';
 import { LayerPanel } from './LayerPanel';
 import { NeuronPanel } from './NeuronPanel';
 import { ProvenanceBadge } from './shared';
+import { ForgeStatePill } from './TimeMachine/StatePill';
+import { ThroughTime } from './TimeMachine/ThroughTime';
 
 function title(i: Inspection): { name: string; sub: string } {
   if (i.kind === 'neuron') {
@@ -24,6 +26,7 @@ export function Inspector({ structure }: { structure: ModelStructure }) {
   const selection = useForgeStore((s) => s.selection);
   const inspecting = useForgeStore((s) => s.inspecting);
   const select = useForgeStore((s) => s.select);
+  const session = useForgeStore((s) => s.session);
 
   if (!selection) {
     return (
@@ -54,7 +57,12 @@ export function Inspector({ structure }: { structure: ModelStructure }) {
           </button>
         </div>
         {t && <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.sub}</div>}
-        {inspection && !stale && <div className="mt-1.5"><ProvenanceBadge provenance={inspection.provenance} /></div>}
+        {inspection && !stale && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+            <ProvenanceBadge provenance={inspection.provenance} />
+            <ForgeStatePill />
+          </div>
+        )}
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-3" style={{ opacity: inspecting ? 0.6 : 1, transition: 'opacity 0.15s' }}>
         {inspection && !stale && (
@@ -62,6 +70,7 @@ export function Inspector({ structure }: { structure: ModelStructure }) {
             : inspection.kind === 'layer' ? <LayerPanel l={inspection} />
               : <ConnectionPanel c={inspection} structure={structure} />
         )}
+        {inspection && !stale && session && session.epoch > 0 && <div className="mt-2.5"><ThroughTime compact /></div>}
       </div>
     </div>
   );
