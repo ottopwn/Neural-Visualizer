@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { TransformerInfo, TransformerTrace } from './transformerTypes';
 import type {
   ComponentHistory, ComponentRef, ComputationTrace, Comparison, EpochComparison, ExperimentRequest, ForgeGraph, Frame,
   HistoryRow, Inspection, Probe, SessionSummary, Timeline,
@@ -74,6 +75,16 @@ export const fetchEpochComparison = (
   id: string, body: { epoch_a: number; epoch_b: number | null; probe: Probe; ref: ComponentRef | null }, signal?: AbortSignal,
 ): Promise<EpochComparison> =>
   http.post(`/sessions/${id}/epoch-compare`, body, { signal }).then((r) => r.data);
+
+// ── Transformer Lab (a tiny model trained locally on first use) ─────────────
+
+export const fetchTransformerInfo = (signal?: AbortSignal): Promise<TransformerInfo> =>
+  http.get('/transformer', { signal, timeout: 180000 }).then((r) => r.data);
+
+export const fetchTransformerTrace = (
+  body: { text: string; ablate_heads: [number, number][]; top_k?: number }, signal?: AbortSignal,
+): Promise<TransformerTrace> =>
+  http.post('/transformer/trace', body, { signal, timeout: 180000 }).then((r) => r.data);
 
 /** True for errors caused by cancelling a superseded request. */
 export const isCancel = (err: unknown): boolean => axios.isCancel(err);

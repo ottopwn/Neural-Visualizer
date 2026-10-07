@@ -17,6 +17,7 @@ from .landscape import LossLandscape, loss_landscape
 from .mlp import SUPPORTED_ACTIVATIONS, MLPSpec
 from .session import ModelSession, SessionRegistry, TrainingSettings, create_session
 from .timemachine import TimeMachine
+from . import transformer as T
 
 router = APIRouter(prefix="/api/forge", tags=["forge"])
 registry = SessionRegistry(max_sessions=8)
@@ -87,6 +88,7 @@ def capabilities():
         "activations": list(SUPPORTED_ACTIVATIONS),
         "interventions": ["ablate_neuron", "set_weight", "set_bias"],
         "pass_explorer": {"trace": True, "sgd_preview": True},
+        "transformer_lab": {"layers": 2, "heads": 2, "d_model": 32, "trained_locally": True},
         "time_machine": {"checkpoint_capacity": DEFAULT_CAPACITY, "interventions_in_history": False},
         "limits": {"max_neurons": MAX_NEURONS, "max_layers": MAX_LAYERS},
         "unsupported_note": (
@@ -228,3 +230,23 @@ def component_history(session_id: str, req: S.ComponentHistoryRequest):
 def epoch_compare(session_id: str, req: S.EpochCompareRequest):
     """Real differences between two stored checkpoints (A -> B)."""
     return _with_time_machine(session_id, lambda tm: tm.compare(req))
+
+
+# ── Transformer Lab ─────────────────────────────────────────────────────────
+# A tiny Transformer trained locally on first use (see forge/transformer.py).
+
+@router.get("/transformer", response_model=T.TransformerInfo)
+def transformer_info():
+    """Model card of the lab Transformer; trains it on first call (a few seconds, CPU)."""
+    return T.info(T.get_model())
+
+
+@router.post("/transformer/trace", response_model=T.TransformerTrace)
+def transformer_trace(req: T.TraceRequest):
+    """Every tensor of one forward pass for the given text (optionally with heads ablated)."""
+    if not 1 <= req.top_k <= 50:
+        raise _bad(ValueError("top_k must be in 1..50"))
+    try:
+        return T.trace(T.get_model(), req)
+    except ValueError as exc:
+        raise _bad(exc)
