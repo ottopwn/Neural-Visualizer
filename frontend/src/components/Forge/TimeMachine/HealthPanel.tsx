@@ -65,7 +65,7 @@ export function HealthPanel() {
             </thead>
             <tbody>
               {ck.layers.map((l) => (
-                <tr key={l.layer} className="cursor-pointer hover:bg-white/5" onClick={() => void select({ kind: 'layer', layer: l.layer })}>
+                <tr key={l.layer} className="cursor-pointer hover:bg-[var(--bg-hover)]" onClick={() => void select({ kind: 'layer', layer: l.layer })}>
                   <td className="py-0.5" style={{ color: 'var(--text-muted)' }}>{l.label}</td>
                   <td className="text-right">{fmt(l.weight_norm, 3)}</td>
                   <td className="text-right" style={{ color: 'var(--tm-grad)' }}>{fmt(l.train_grad_norm, 3)}</td>

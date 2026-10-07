@@ -2,65 +2,77 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Theme variables ───────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════════
+   Neural Forge design tokens
+   Two themes: dark (default) and Paper (light).  Colour carries meaning:
+     positive / negative value  -> --pos / --neg   (green / red)
+     class 0 / class 1          -> red / blue      (dataset colours)
+     live / historical / what-if -> --tm-live / --tm-hist / --tm-whatif
+   Text tokens (--text-*) are tuned for WCAG AA on --bg-card.
+   ════════════════════════════════════════════════════════════════════ */
 :root {
-  --bg-base:      #090d13;
-  --bg-card:      #111827;
-  --bg-sidebar:   rgba(17,24,39,0.3);
-  --border:       #1f2937;
-  --border-soft:  #374151;
-  --text-primary: #e2e8f0;
-  --text-muted:   #9ca3af;
-  --text-faint:   #4b5563;
-  --accent:       #3b82f6;
-  --accent-glow:  rgba(59,130,246,0.4);
-  --node-active:  #60a5fa;
-  --grid-line:    #374151;
-}
+  color-scheme: dark;
+  --bg-base:      #0a0d12;
+  --bg-sidebar:   #0d1117;
+  --bg-card:      #11161e;
+  --bg-raised:    #171d27;
+  --bg-hover:     rgba(148,163,184,0.08);
+  --bg-active:    rgba(91,140,255,0.14);
+  --border:       #1e2631;
+  --border-soft:  #2b3442;
+  --text-primary: #e7eaf0;
+  --text-muted:   #a7b0bd;
+  --text-faint:   #808a99;
+  --accent:       #5b8cff;
+  --accent-text:  #9db8ff;
+  --accent-glow:  rgba(91,140,255,0.28);
+  --focus:        #8fb0ff;
+  --node-active:  #7aa2ff;
+  --grid-line:    #1e2631;
+  --select:       #fde047;
 
-[data-theme="cyberpunk"] {
-  --bg-base:      #000008;
-  --bg-card:      #0a0014;
-  --bg-sidebar:   rgba(10,0,20,0.6);
-  --border:       #2d0050;
-  --border-soft:  #5b0090;
-  --text-primary: #f0e6ff;
-  --text-muted:   #c084fc;
-  --text-faint:   #7c3aed;
-  --accent:       #e879f9;
-  --accent-glow:  rgba(232,121,249,0.5);
-  --node-active:  #f0abfc;
-  --grid-line:    #1e003a;
-}
+  --text-pos:  #6ee7b7;
+  --text-neg:  #fca5a5;
+  --text-warn: #fcd34d;
+  --text-info: #93c5fd;
+  --pos: #10b981;
+  --neg: #ef4444;
+  --warn: #f59e0b;
 
-[data-theme="matrix"] {
-  --bg-base:      #000400;
-  --bg-card:      #000d02;
-  --bg-sidebar:   rgba(0,13,2,0.6);
-  --border:       #003a0a;
-  --border-soft:  #006614;
-  --text-primary: #a7f3d0;
-  --text-muted:   #6ee7b7;
-  --text-faint:   #065f46;
-  --accent:       #10b981;
-  --accent-glow:  rgba(16,185,129,0.4);
-  --node-active:  #34d399;
-  --grid-line:    #003a0a;
+  --shadow-pop: 0 12px 32px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.35);
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 [data-theme="paper"] {
-  --bg-base:      #f8f6f0;
+  color-scheme: light;
+  --bg-base:      #f4f3ee;
+  --bg-sidebar:   #faf9f6;
   --bg-card:      #ffffff;
-  --bg-sidebar:   rgba(255,255,255,0.7);
-  --border:       #e5e7eb;
-  --border-soft:  #d1d5db;
-  --text-primary: #111827;
-  --text-muted:   #6b7280;
-  --text-faint:   #9ca3af;
-  --accent:       #2563eb;
-  --accent-glow:  rgba(37,99,235,0.2);
+  --bg-raised:    #f6f5f1;
+  --bg-hover:     rgba(15,23,42,0.05);
+  --bg-active:    rgba(47,91,211,0.10);
+  --border:       #e3e1d9;
+  --border-soft:  #cfccc1;
+  --text-primary: #15181d;
+  --text-muted:   #48505e;
+  --text-faint:   #646c7a;
+  --accent:       #2f5bd3;
+  --accent-text:  #2448b0;
+  --accent-glow:  rgba(47,91,211,0.18);
+  --focus:        #2f5bd3;
   --node-active:  #1d4ed8;
-  --grid-line:    #e5e7eb;
+  --grid-line:    #e3e1d9;
+  --select:       #ca8a04;
+
+  --text-pos:  #047857;
+  --text-neg:  #b91c1c;
+  --text-warn: #a16207;
+  --text-info: #1d4ed8;
+  --pos: #059669;
+  --neg: #dc2626;
+  --warn: #d97706;
+
+  --shadow-pop: 0 12px 32px rgba(15,23,42,0.12), 0 2px 6px rgba(15,23,42,0.08);
 }
 
 /* ── Training Time Machine tokens ──────────────────────────────────
@@ -74,7 +86,7 @@
   --tm-loss: #fb7185;       --tm-acc: #34d399;       --tm-grad: #fbbf24;
   --tm-pos: #6ee7b7;        --tm-neg: #fca5a5;
   --tm-panel: rgba(255,255,255,0.02);
-  --tm-overlay: rgba(9,13,19,0.85);
+  --tm-overlay: rgba(10,13,18,0.88);
 }
 [data-theme="paper"] {
   --tm-live: #059669;       --tm-live-text: #047857;
@@ -84,120 +96,137 @@
   --tm-loss: #e11d48;       --tm-acc: #059669;       --tm-grad: #d97706;
   --tm-pos: #047857;        --tm-neg: #b91c1c;
   --tm-panel: rgba(15,23,42,0.03);
-  --tm-overlay: rgba(255,255,255,0.9);
+  --tm-overlay: rgba(255,255,255,0.92);
 }
 
 /* ── Base ──────────────────────────────────────────────────────────── */
 @layer base {
   * { box-sizing: border-box; }
 
+  html { font-size: 16px; }
+
   body {
     background-color: var(--bg-base);
     color: var(--text-primary);
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
     margin: 0;
     padding: 0;
     -webkit-font-smoothing: antialiased;
-    transition: background-color 0.3s, color 0.3s;
   }
 
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track { background: var(--bg-card); }
-  ::-webkit-scrollbar-thumb { background: var(--border-soft); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+  .font-mono, code, kbd, pre { font-family: var(--font-mono); font-feature-settings: 'zero' 0; }
+
+  /* Keyboard focus is always visible; mouse focus stays quiet. */
+  :focus { outline: none; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+
+  ::selection { background: var(--accent-glow); }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-soft); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background-color: var(--text-faint); }
 }
 
 /* ── Components ────────────────────────────────────────────────────── */
 @layer components {
-  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 0.75rem; }
-  .card-header { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.5rem; }
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 0.625rem; }
+  .card-header { padding: 0.625rem 0.875rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.5rem; }
 
   .btn-primary {
-    @apply font-medium py-2 px-4 rounded-lg transition-all duration-150 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-1.5 font-medium py-2 px-4 rounded-md text-sm transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
     background: var(--accent);
-    color: white;
+    color: #fff;
   }
-  .btn-primary:hover { filter: brightness(1.15); }
+  .btn-primary:not(:disabled):hover { filter: brightness(1.08); }
 
   .btn-secondary {
-    @apply font-medium py-2 px-3 rounded-lg transition-all duration-150 active:scale-95;
-    background: var(--bg-card);
+    @apply inline-flex items-center justify-center gap-1.5 font-medium py-2 px-3 rounded-md text-sm transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    background: var(--bg-raised);
     color: var(--text-primary);
     border: 1px solid var(--border-soft);
   }
-  .btn-secondary:hover { filter: brightness(1.12); }
+  .btn-secondary:not(:disabled):hover { background: var(--bg-hover); border-color: var(--text-faint); }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed;
+    color: var(--text-muted);
+  }
+  .btn-ghost:not(:disabled):hover { background: var(--bg-hover); color: var(--text-primary); }
 
   .input-base {
-    @apply w-full rounded-lg px-3 py-2 text-sm focus:outline-none transition-colors;
-    background: var(--bg-card);
+    @apply w-full rounded-md px-3 py-2 text-sm transition-colors;
+    background: var(--bg-base);
     border: 1px solid var(--border-soft);
     color: var(--text-primary);
   }
-  .input-base:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .input-base:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); outline: none; }
 
   .select-base {
-    @apply w-full rounded-lg px-3 py-2 text-sm focus:outline-none transition-colors cursor-pointer;
-    background: var(--bg-card);
+    @apply w-full rounded-md px-2.5 py-1.5 text-sm transition-colors cursor-pointer;
+    background: var(--bg-base);
     border: 1px solid var(--border-soft);
     color: var(--text-primary);
   }
-  .select-base:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .select-base:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); outline: none; }
 
-  .label-base { @apply block text-xs font-medium mb-1.5 uppercase tracking-wide; color: var(--text-muted); }
+  .label-base { @apply block text-[11px] font-semibold mb-1.5 uppercase tracking-[0.06em]; color: var(--text-muted); }
 
-  .badge { @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium; }
-  .badge-blue  { @apply badge; background: rgba(59,130,246,0.15); color: #93c5fd; border: 1px solid rgba(59,130,246,0.3); }
-  .badge-green { @apply badge; background: rgba(16,185,129,0.15); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.3); }
-  .badge-purple{ @apply badge; background: rgba(139,92,246,0.15); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.3); }
-  .badge-orange{ @apply badge; background: rgba(249,115,22,0.15); color: #fdba74; border: 1px solid rgba(249,115,22,0.3); }
-  .badge-pink  { @apply badge; background: rgba(236,72,153,0.15); color: #f9a8d4; border: 1px solid rgba(236,72,153,0.3); }
+  /* Section eyebrow used in panels */
+  .eyebrow { @apply text-[10.5px] font-semibold uppercase tracking-[0.08em]; color: var(--text-faint); }
+
+  /* Segmented control */
+  .seg { @apply inline-flex items-center p-0.5 rounded-md border; border-color: var(--border); background: var(--bg-base); }
+  .seg > button { @apply px-2.5 py-1 rounded text-xs font-medium transition-colors; color: var(--text-muted); }
+  .seg > button:hover { color: var(--text-primary); }
+  .seg > button[aria-pressed="true"], .seg > button[aria-selected="true"] { background: var(--bg-raised); color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--border-soft); }
+
+  /* Choice grid buttons (sidebar) */
+  .choice { @apply py-1.5 px-2 rounded-md text-xs font-medium transition-colors border text-center; border-color: var(--border); color: var(--text-muted); background: transparent; }
+  .choice:hover { color: var(--text-primary); background: var(--bg-hover); }
+  .choice[aria-pressed="true"] { color: var(--accent-text); border-color: var(--accent); background: var(--bg-active); }
+
+  .badge { @apply inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-semibold tracking-wide; }
+  .badge-blue  { @apply badge; background: rgba(59,130,246,0.12); color: #93c5fd; border: 1px solid rgba(59,130,246,0.3); }
+  .badge-green { @apply badge; background: rgba(16,185,129,0.12); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.3); }
+  .badge-purple{ @apply badge; background: rgba(139,92,246,0.12); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.3); }
+  .badge-orange{ @apply badge; background: rgba(245,158,11,0.12); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
+  .badge-pink  { @apply badge; background: rgba(236,72,153,0.12); color: #f9a8d4; border: 1px solid rgba(236,72,153,0.3); }
+  .badge-gray  { @apply badge; background: var(--bg-raised); color: var(--text-muted); border: 1px solid var(--border-soft); }
+
+  /* Numbers that should line up */
+  .tnum { font-variant-numeric: tabular-nums; }
+
+  /* Floating overlay inside a visualisation */
+  .overlay { background: var(--tm-overlay); border: 1px solid var(--border); border-radius: 0.375rem; backdrop-filter: blur(6px); }
 }
 
 /* Badges in the light (Paper) theme: same hues, readable contrast. */
 [data-theme="paper"] .badge-blue   { color: #1d4ed8; }
 [data-theme="paper"] .badge-green  { color: #047857; }
 [data-theme="paper"] .badge-purple { color: #6d28d9; }
-[data-theme="paper"] .badge-orange { color: #c2410c; }
+[data-theme="paper"] .badge-orange { color: #b45309; }
 [data-theme="paper"] .badge-pink   { color: #be185d; }
 
-/* ── Utilities ─────────────────────────────────────────────────────── */
-@layer utilities {
-  .text-gradient { @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400; }
-  .glow-blue { box-shadow: 0 0 15px var(--accent-glow); }
-}
+/* Legacy components still use a few Tailwind gray utilities: map them to tokens. */
+[data-theme="paper"] .text-gray-200, [data-theme="paper"] .text-gray-300 { color: var(--text-primary) !important; }
+[data-theme="paper"] .text-gray-400, [data-theme="paper"] .text-gray-500 { color: var(--text-muted) !important; }
+[data-theme="paper"] .text-gray-600 { color: var(--text-faint) !important; }
+[data-theme="paper"] .bg-gray-800\/60, [data-theme="paper"] .bg-gray-900\/80, [data-theme="paper"] .bg-gray-900\/90,
+[data-theme="paper"] .bg-gray-800, [data-theme="paper"] .bg-gray-800\/50 { background-color: var(--bg-raised) !important; }
+[data-theme="paper"] .border-gray-700, [data-theme="paper"] .border-gray-800 { border-color: var(--border) !important; }
 
 #root { width: 100%; min-height: 100svh; display: flex; flex-direction: column; }
 
 /* ── Range inputs ──────────────────────────────────────────────────── */
-input[type='range'] { -webkit-appearance: none; appearance: none; background: transparent; width: 100%; cursor: pointer; }
-input[type='range']::-webkit-slider-track { height: 4px; background: var(--border-soft); border-radius: 2px; }
-input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: var(--accent); cursor: pointer; margin-top: -6px; transition: transform 0.1s; }
-input[type='range']::-webkit-slider-thumb:hover { transform: scale(1.2); }
+input[type='range'] { -webkit-appearance: none; appearance: none; background: transparent; width: 100%; cursor: pointer; height: 18px; }
+input[type='range']::-webkit-slider-runnable-track { height: 4px; background: var(--border-soft); border-radius: 2px; }
+input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; height: 14px; width: 14px; border-radius: 50%; background: var(--accent); cursor: pointer; margin-top: -5px; border: 2px solid var(--bg-card); }
+input[type='range']::-moz-range-track { height: 4px; background: var(--border-soft); border-radius: 2px; }
+input[type='range']::-moz-range-thumb { height: 12px; width: 12px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg-card); }
 
-/* ── Matrix rain animation ─────────────────────────────────────────── */
-@keyframes matrix-rain {
-  0%   { transform: translateY(-100%); opacity: 1; }
-  100% { transform: translateY(100vh); opacity: 0; }
-}
-.matrix-char { animation: matrix-rain linear infinite; }
-
-/* ── Cyberpunk scanlines ───────────────────────────────────────────── */
-[data-theme="cyberpunk"] body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(232,121,249,0.02) 2px,
-    rgba(232,121,249,0.02) 4px
-  );
-  pointer-events: none;
-  z-index: 9999;
-}
-
-/* ── Cinema mode overlay ───────────────────────────────────────────── */
+/* ── Cinema mode overlay (legacy illustrative walkthrough) ─────────── */
 .cinema-overlay {
   position: fixed;
   inset: 0;
@@ -206,16 +235,13 @@ input[type='range']::-webkit-slider-thumb:hover { transform: scale(1.2); }
   backdrop-filter: blur(4px);
 }
 
-/* ── Pulse ring animation ──────────────────────────────────────────── */
 @keyframes pulse-ring {
   0%   { transform: scale(1);   opacity: 0.8; }
   100% { transform: scale(2.5); opacity: 0; }
 }
 .pulse-ring { animation: pulse-ring 1.5s ease-out infinite; }
 
-/* ── Floating particle ─────────────────────────────────────────────── */
-@keyframes float-up {
-  0%   { transform: translateY(0)   scale(1);   opacity: 0.8; }
-  100% { transform: translateY(-40px) scale(0); opacity: 0; }
+/* Non-essential motion is disabled for people who ask for it. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
 }
-.float-particle { animation: float-up 2s ease-out infinite; }

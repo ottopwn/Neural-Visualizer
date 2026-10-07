@@ -70,8 +70,8 @@ export { MODEL_LOSSES };
 export const useNetworkStore = create<NetworkState>((set) => ({
   networkConfig: {
     model_type: 'ANN',
-    n_layers: 3,
-    neurons: [32, 32, 32, 32, 32],
+    n_layers: 2,
+    neurons: [8, 8, 8, 8, 8],
     activations: ['ReLU', 'ReLU', 'ReLU', 'ReLU', 'ReLU'],
     loss_fn: 'Binary Cross Entropy',
     reg_type: 'None',
@@ -87,7 +87,7 @@ export const useNetworkStore = create<NetworkState>((set) => ({
     learning_rate: 0.01,
     reg_type: 'None',
     reg_rate: 0.01,
-    epochs: 5,
+    epochs: 20,
     loss_fn: 'Binary Cross Entropy',
   },
   graph: { nodes: [], edges: [] },

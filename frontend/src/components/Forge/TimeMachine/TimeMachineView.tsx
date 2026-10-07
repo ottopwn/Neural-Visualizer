@@ -1,13 +1,14 @@
-import { FlaskRound, GitCompareArrows, GraduationCap, HeartPulse, Info, Loader2, Microscope, RotateCcw, Spline } from 'lucide-react';
+import { GitCompareArrows, HeartPulse, History, Loader2, RotateCcw, Spline } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { highlightFor, layerLabels as buildLabels, refForNode } from '../../../forge/selection';
 import { useForgeStore } from '../../../forge/store';
 import { useTimeMachine } from '../../../forge/timeMachine';
 import { resolveEpoch } from '../../../forge/timeline';
-import { useNetworkStore } from '../../../store/networkStore';
+import { useWorkspace } from '../../../app/workspace';
 import type { NetworkNode } from '../../../types';
 import { NetworkGraph } from '../../Visualizations/NetworkGraph';
-import { Inspector } from '../Inspector';
+import { NeedsModel } from '../../Workspaces/EmptyState';
+import { useElementWidth } from '../hooks';
 import { BoundaryStage } from './BoundaryStage';
 import { EpochCompareView } from './EpochCompareView';
 import { HealthPanel } from './HealthPanel';
@@ -16,36 +17,7 @@ import { ThroughTime } from './ThroughTime';
 import { TimelineInstrument, Transport } from './TimelineInstrument';
 import { useTimelineData, useTransportKeys } from './hooks';
 
-type SideTab = 'time' | 'microscope' | 'health';
-
-function Empty({ modelType }: { modelType: string }) {
-  return (
-    <div className="h-full flex items-center justify-center">
-      <div className="max-w-md text-center space-y-3 px-6">
-        <div className="w-12 h-12 mx-auto rounded-xl flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--tm-hist) 15%, transparent)' }}>
-          <Info size={22} style={{ color: 'var(--tm-hist)' }} />
-        </div>
-        {modelType !== 'ANN' ? (
-          <>
-            <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>The Training Time Machine works with ANN (MLP) models</p>
-            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-              {modelType} graphs are illustrative diagrams with no real training history to replay. Switch to <b>ANN</b>, click
-              <b> Build Network</b>, then <b>Train Model</b>.
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Build and train a network first</p>
-            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-              Every training epoch stores a checkpoint of the real model. Click <b>Build Network</b> and <b>Train Model</b>, then come
-              back here to travel through its learning process.
-            </p>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
+type SideTab = 'time' | 'health';
 
 function NetworkPane() {
   const session = useForgeStore((s) => s.session);
@@ -92,117 +64,110 @@ function NetworkPane() {
 export function TimeMachineView() {
   const session = useForgeStore((s) => s.session);
   const mode = useForgeStore((s) => s.mode);
-  const setMode = useForgeStore((s) => s.setMode);
   const interventions = useForgeStore((s) => s.interventions);
   const resetInterventions = useForgeStore((s) => s.reset);
-  const modelType = useNetworkStore((s) => s.networkConfig.model_type);
-  const activeTab = useNetworkStore((s) => s.activeTab);
+  const workspaceMode = useWorkspace((s) => s.mode);
   const cursor = useTimeMachine((s) => s.cursor);
   const compareMode = useTimeMachine((s) => s.compareMode);
   const setCompareMode = useTimeMachine((s) => s.setCompareMode);
   const error = useTimeMachine((s) => s.error);
   const [side, setSide] = useState<SideTab>('time');
+  const [rootRef, width] = useElementWidth<HTMLDivElement>(900);
   useTimelineData();
-  useTransportKeys(!!session && activeTab === 'timemachine');
+  useTransportKeys(!!session && workspaceMode === 'timemachine');
+  const wide = width >= 860;
 
-  if (!session || modelType !== 'ANN') return <Empty modelType={modelType} />;
+  if (!session) {
+    return (
+      <NeedsModel icon={<History size={20} />} title="Watch a network learn"
+        body={<>Every training epoch stores an immutable checkpoint of the real model. Build and train a network, then travel through its learning process here.</>} />
+    );
+  }
   const lab = mode === 'lab';
   const epoch = resolveEpoch(cursor, session.epoch);
   const untrained = session.epoch === 0;
   const sideTab = side === 'health' && !lab ? 'time' : side;
 
   return (
-    <div className="h-full min-h-0 flex flex-col gap-2 overflow-y-auto 2xl:overflow-hidden">
-      {/* status row */}
-      <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
-        <StatePill epoch={epoch} historical={cursor !== null} size="md" />
-        <span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
-          {session.checkpoints.length} stored checkpoints · {session.history.length} logged epochs · {session.dataset_name}
-        </span>
-        {error && <span className="text-[11px]" style={{ color: 'var(--tm-neg)' }}>{error}</span>}
-        <button type="button" onClick={() => void setCompareMode(!compareMode)} aria-pressed={compareMode} disabled={untrained}
-          className="ml-auto flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-medium disabled:opacity-40"
-          style={compareMode
-            ? { borderColor: 'var(--tm-b)', color: '#fff', background: 'var(--tm-b)' }
-            : { borderColor: 'var(--border-soft)', color: 'var(--text-muted)' }}>
-          <GitCompareArrows size={12} />Compare A ↔ B
-        </button>
-        <div className="flex items-center p-0.5 rounded-lg border" style={{ borderColor: 'var(--border)' }} role="group" aria-label="Experience mode">
-          {([['learn', 'Learn', GraduationCap], ['lab', 'Lab', FlaskRound]] as const).map(([m, label, Icon]) => (
-            <button key={m} type="button" onClick={() => setMode(m)} aria-pressed={mode === m}
-              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors"
-              style={{ background: mode === m ? 'var(--accent)' : 'transparent', color: mode === m ? '#fff' : 'var(--text-muted)' }}>
-              <Icon size={12} />{label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {interventions.length > 0 && (
-        <div className="flex items-center gap-2 text-[11px] px-2.5 py-1.5 rounded-lg border flex-shrink-0"
-          style={{ borderColor: 'var(--tm-whatif)', color: 'var(--tm-whatif-text)', background: 'color-mix(in srgb, var(--tm-whatif) 8%, transparent)' }}>
-          <span>
-            What-if overlay active ({interventions.length} edit{interventions.length > 1 ? 's' : ''}): it is applied temporarily to the network graph
-            and Microscope at whichever epoch you view. Stored checkpoints, the timeline, decision regions and comparisons are unaffected.
+    <div ref={rootRef} className="h-full min-h-0 overflow-y-auto">
+      <div className="flex flex-col gap-3 p-3">
+        {/* status row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <StatePill epoch={epoch} historical={cursor !== null} size="md" />
+          <span className="text-[12px] tnum" style={{ color: 'var(--text-faint)' }}>
+            {session.checkpoints.length} stored checkpoints · {session.history.length} logged epochs · {session.dataset_name}
           </span>
-          <button type="button" className="ml-auto btn-secondary !py-0.5 !px-2 text-[11px] flex items-center gap-1 flex-shrink-0" onClick={() => void resetInterventions()}>
-            <RotateCcw size={11} />Reset what-if
+          {error && <span className="text-[12px]" role="alert" style={{ color: 'var(--text-neg)' }}>{error}</span>}
+          <button type="button" onClick={() => void setCompareMode(!compareMode)} aria-pressed={compareMode} disabled={untrained}
+            className="ml-auto btn-secondary !py-1 !px-2.5 !text-xs"
+            style={compareMode ? { borderColor: 'var(--tm-b)', color: '#fff', background: 'var(--tm-b)' } : undefined}>
+            <GitCompareArrows size={13} />Compare A ↔ B
           </button>
         </div>
-      )}
 
-      {/* the instrument */}
-      <div className="rounded-xl border px-2.5 pt-2 pb-2.5 flex-shrink-0 space-y-1.5" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
-        {untrained ? (
-          <p className="text-[12px] py-3 px-1" style={{ color: 'var(--text-muted)' }}>
-            Only epoch 0 (random initialisation) exists so far. Click <b>Train Model</b> in the sidebar: every epoch is stored and appears here as a checkpoint you can visit.
-          </p>
+        {interventions.length > 0 && (
+          <div className="flex items-center gap-2 text-[12px] px-3 py-2 rounded-md border"
+            style={{ borderColor: 'var(--tm-whatif)', color: 'var(--tm-whatif-text)', background: 'color-mix(in srgb, var(--tm-whatif) 8%, transparent)' }}>
+            <span>
+              What-if overlay active ({interventions.length} edit{interventions.length > 1 ? 's' : ''}): applied temporarily to the graph, Microscope,
+              Pass Explorer and 3D view at whichever epoch you view. Stored checkpoints, the timeline, decision regions and comparisons are unaffected.
+            </span>
+            <button type="button" className="ml-auto btn-secondary !py-1 !px-2 !text-[11px] flex-shrink-0" onClick={() => void resetInterventions()}>
+              <RotateCcw size={11} />Reset what-if
+            </button>
+          </div>
+        )}
+
+        {/* the instrument */}
+        <div className="card px-3 pt-2.5 pb-3 space-y-2">
+          {untrained ? (
+            <p className="text-[13px] py-3 px-1" style={{ color: 'var(--text-muted)' }}>
+              Only epoch 0 (random initialisation) exists so far. Click <b>Train</b> in the Experiment panel: every epoch is stored and appears here as a checkpoint you can visit.
+            </p>
+          ) : (
+            <>
+              <TimelineInstrument lab={lab} />
+              <Transport />
+              <div className="flex gap-x-3 gap-y-1 text-[11px] flex-wrap" style={{ color: 'var(--text-faint)' }}>
+                <span style={{ color: 'var(--tm-loss)' }}>━ loss</span>
+                <span style={{ color: 'var(--tm-acc)' }}>━ accuracy</span>
+                {lab && <span style={{ color: 'var(--tm-grad)' }}>━ training ‖∇‖ (log)</span>}
+                <span>| ticks = stored checkpoints (curves = full training log)</span>
+                <span>◆ init · ▸ run · ★ ≥90% · ▲ best acc · ▼ min loss · ⬇ biggest drop</span>
+                <span className="ml-auto"><kbd>Space</kbd> play · <kbd>←</kbd>/<kbd>→</kbd> step · <kbd>Home</kbd>/<kbd>End</kbd></span>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* stage */}
+        {compareMode ? (
+          <div className="min-h-[520px]"><EpochCompareView /></div>
         ) : (
           <>
-            <TimelineInstrument lab={lab} />
-            <Transport />
-            <div className="flex gap-3 text-[9.5px] flex-wrap" style={{ color: 'var(--text-faint)' }}>
-              <span style={{ color: 'var(--tm-loss)' }}>━ loss</span>
-              <span style={{ color: 'var(--tm-acc)' }}>━ accuracy</span>
-              {lab && <span style={{ color: 'var(--tm-grad)' }}>━ training ‖∇‖ (log)</span>}
-              <span>| ticks = stored checkpoints (curves = full training log)</span>
-              <span>◆ init · ▸ run · ★ ≥90% · ▲ best acc · ▼ min loss · ⬇ biggest drop</span>
-              <span className="ml-auto">Space play/pause · ←/→ step · Home/End</span>
+            <div className="grid gap-3" style={{ gridTemplateColumns: wide ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)' }}>
+              <div className="min-w-0"><BoundaryStage /></div>
+              <div className="min-w-0" style={{ height: wide ? 'auto' : 380, minHeight: 360 }}><NetworkPane /></div>
             </div>
+            <section className="card overflow-hidden">
+              <div className="flex items-center gap-0.5 px-2 pt-1.5 border-b" style={{ borderColor: 'var(--border)' }} role="tablist" aria-label="Time Machine details">
+                {([
+                  ['time', 'Selected component through time', Spline],
+                  ...(lab ? [['health', 'Training health', HeartPulse] as const] : []),
+                ] as const).map(([id, label, Icon]) => (
+                  <button key={id} type="button" role="tab" aria-selected={sideTab === id} onClick={() => setSide(id)}
+                    className="flex items-center gap-1.5 px-2.5 py-2 text-[12px] -mb-px border-b-2"
+                    style={{ borderColor: sideTab === id ? 'var(--accent)' : 'transparent', color: sideTab === id ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                    <Icon size={13} />{label}
+                  </button>
+                ))}
+                {!lab && <span className="ml-auto text-[11px] pr-1" style={{ color: 'var(--text-faint)' }}>Lab mode adds training health</span>}
+              </div>
+              <div className="p-3">{sideTab === 'time' ? <ThroughTime /> : <HealthPanel />}</div>
+            </section>
           </>
         )}
       </div>
-
-      {/* stage */}
-      {compareMode ? (
-        <div className="flex-1 flex-shrink-0 min-h-[480px] 2xl:flex-shrink 2xl:min-h-0"><EpochCompareView /></div>
-      ) : (
-        <div className="flex-shrink-0 min-h-0 grid gap-2 grid-cols-1 lg:grid-cols-2 2xl:flex-1 2xl:flex-shrink 2xl:grid-cols-[minmax(320px,1fr)_minmax(280px,1fr)_minmax(320px,380px)]">
-          <div className="min-h-0 2xl:overflow-y-auto pr-0.5"><BoundaryStage /></div>
-          <NetworkPane />
-          <aside className="h-[520px] 2xl:h-auto 2xl:min-h-0 flex flex-col rounded-xl border overflow-hidden lg:col-span-2 2xl:col-span-1"
-            style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
-            <div className="flex items-center gap-0.5 px-1.5 pt-1.5 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }} role="tablist">
-              {([
-                ['time', 'Through time', Spline],
-                ['microscope', 'Microscope', Microscope],
-                ...(lab ? [['health', 'Health', HeartPulse] as const] : []),
-              ] as const).map(([id, label, Icon]) => (
-                <button key={id} type="button" role="tab" aria-selected={sideTab === id} onClick={() => setSide(id)}
-                  className="flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-t-md -mb-px border-b-2"
-                  style={{ borderColor: sideTab === id ? 'var(--accent)' : 'transparent', color: sideTab === id ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                  <Icon size={12} />{label}
-                </button>
-              ))}
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              {sideTab === 'microscope'
-                ? <Inspector structure={session.structure} />
-                : <div className="p-3">{sideTab === 'time' ? <ThroughTime /> : <HealthPanel />}</div>}
-            </div>
-          </aside>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type {
-  ComponentHistory, ComponentRef, Comparison, EpochComparison, ExperimentRequest, ForgeGraph, Frame,
+  ComponentHistory, ComponentRef, ComputationTrace, Comparison, EpochComparison, ExperimentRequest, ForgeGraph, Frame,
   HistoryRow, Inspection, Probe, SessionSummary, Timeline,
 } from './types';
 
@@ -35,6 +35,25 @@ export const fetchGraph = (id: string, req: ExperimentRequest): Promise<ForgeGra
 
 export const inspect = (id: string, ref: ComponentRef, req: ExperimentRequest): Promise<Inspection> =>
   http.post(`/sessions/${id}/inspect`, { ...req, ref }).then((r) => r.data);
+
+export const fetchTrace = (id: string, req: ExperimentRequest & { learning_rate?: number | null }, signal?: AbortSignal): Promise<ComputationTrace> =>
+  http.post(`/sessions/${id}/trace`, req, { signal }).then((r) => r.data);
+
+export interface SessionLossLandscape {
+  checkpoint_epoch: number;
+  is_latest: boolean;
+  alphas: number[];
+  betas: number[];
+  loss: number[][];
+  center_loss: number;
+  min_loss: number;
+  max_loss: number;
+  seed: number;
+  note: string;
+}
+
+export const fetchLossLandscape = (id: string, checkpointEpoch: number | null, signal?: AbortSignal): Promise<SessionLossLandscape> =>
+  http.post(`/sessions/${id}/loss-landscape`, { checkpoint_epoch: checkpointEpoch }, { signal }).then((r) => r.data);
 
 export const compare = (id: string, req: ExperimentRequest): Promise<Comparison> =>
   http.post(`/sessions/${id}/compare`, req).then((r) => r.data);

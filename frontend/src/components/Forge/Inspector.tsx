@@ -21,7 +21,11 @@ function title(i: Inspection): { name: string; sub: string } {
   return { name: `${i.source_name} → ${i.target_name}`, sub: `connection · W${i.layer}[${i.target}, ${i.source}]` };
 }
 
-export function Inspector({ structure }: { structure: ModelStructure }) {
+/**
+ * The Neural Microscope panel for the current selection.  `embedded` lets a
+ * parent scroll container own the scrolling (the global inspector column).
+ */
+export function Inspector({ structure, embedded = false }: { structure: ModelStructure; embedded?: boolean }) {
   const inspection = useForgeStore((s) => s.inspection);
   const selection = useForgeStore((s) => s.selection);
   const inspecting = useForgeStore((s) => s.inspecting);
@@ -30,11 +34,9 @@ export function Inspector({ structure }: { structure: ModelStructure }) {
 
   if (!selection) {
     return (
-      <div className="h-full flex flex-col items-center justify-center text-center gap-3 px-6" style={{ color: 'var(--text-muted)' }}>
-        <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'rgba(96,165,250,0.1)' }}>
-          <Microscope size={22} style={{ color: '#60a5fa' }} />
-        </div>
-        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Click any neuron or layer header</p>
+      <div className={`${embedded ? 'py-8' : 'h-full'} flex flex-col items-center justify-center text-center gap-2.5 px-6`} style={{ color: 'var(--text-muted)' }}>
+        <Microscope size={22} style={{ color: 'var(--accent)' }} aria-hidden="true" />
+        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Select a neuron, layer or connection</p>
         <p className="text-xs leading-relaxed">
           The microscope shows what that component computes for the selected input: its real weights, bias,
           weighted sum, activation, gradients, and how it behaves across the whole dataset.
@@ -47,12 +49,12 @@ export function Inspector({ structure }: { structure: ModelStructure }) {
   const t = inspection && !stale ? title(inspection) : null;
 
   return (
-    <div className="h-full flex flex-col min-h-0">
-      <div className="flex-shrink-0 px-3 py-2.5 border-b" style={{ borderColor: 'var(--border)' }}>
+    <div className={embedded ? '' : 'h-full flex flex-col min-h-0'}>
+      <div className={`flex-shrink-0 px-3 py-2.5 border-b ${embedded ? 'sticky top-0 z-10' : ''}`} style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
         <div className="flex items-center gap-2">
           <span className="text-base font-semibold font-mono" style={{ color: 'var(--text-primary)' }}>{t?.name ?? '…'}</span>
           {inspecting && <Loader2 size={13} className="animate-spin" style={{ color: 'var(--text-faint)' }} />}
-          <button type="button" aria-label="Close inspector" className="ml-auto p-1 rounded hover:bg-white/5" onClick={() => select(null)}>
+          <button type="button" aria-label="Close inspector" className="ml-auto p-1 rounded hover:bg-[var(--bg-hover)]" onClick={() => select(null)}>
             <X size={14} style={{ color: 'var(--text-muted)' }} />
           </button>
         </div>
@@ -64,7 +66,7 @@ export function Inspector({ structure }: { structure: ModelStructure }) {
           </div>
         )}
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto p-3" style={{ opacity: inspecting ? 0.6 : 1, transition: 'opacity 0.15s' }}>
+      <div className={embedded ? 'p-3' : 'flex-1 min-h-0 overflow-y-auto p-3'} style={{ opacity: inspecting ? 0.6 : 1, transition: 'opacity 0.15s' }}>
         {inspection && !stale && (
           inspection.kind === 'neuron' ? <NeuronPanel n={inspection} structure={structure} />
             : inspection.kind === 'layer' ? <LayerPanel l={inspection} />

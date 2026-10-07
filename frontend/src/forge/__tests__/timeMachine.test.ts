@@ -4,6 +4,7 @@ import type { ComponentRef, Frame, Probe, SessionSummary } from '../types';
 vi.mock('../api', () => ({
   fetchGraph: vi.fn(),
   compare: vi.fn(),
+  fetchTrace: vi.fn(async (_id: string, req: { interventions: unknown[]; checkpoint_epoch: number | null }) => ({ tag: req.interventions.length, epoch: req.checkpoint_epoch })),
   inspect: vi.fn(),
   fetchTimeline: vi.fn(),
   fetchFrame: vi.fn(),

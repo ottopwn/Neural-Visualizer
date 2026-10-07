@@ -1,6 +1,6 @@
 // Small, dependency-free chart primitives for the Neural Microscope.
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { sampleCurve } from '../../forge/activations';
 import { CLASS0, CLASS1, fmt, fmtSigned, maxAbs, rankByMagnitude, rgb, type RGB } from '../../forge/format';
 import type { Histogram } from '../../forge/types';
@@ -37,10 +37,19 @@ export function HeatmapCanvas({
   const ref = useRef<HTMLCanvasElement>(null);
   const rows = values.length;
   const cols = values[0]?.length ?? 0;
+  // Redraw when the canvas is resized (collapsible panels, window resize).
+  const [size, setSize] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([e]) => setSize(Math.round(e.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     const canvas = ref.current;
-    if (!canvas || !rows || !cols) return;
+    if (!canvas || !rows || !cols || size < 0) return;
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
@@ -111,8 +120,8 @@ export function HeatmapCanvas({
     });
     if (marker) {
       const [mx, my] = [px(marker[0]), py(marker[1])];
-      ctx.strokeStyle = '#fde047';
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = getComputedStyle(canvas).getPropertyValue('--select').trim() || '#fde047';
+      ctx.lineWidth = 1.8;
       ctx.beginPath();
       ctx.arc(mx, my, 6, 0, Math.PI * 2);
       ctx.moveTo(mx - 10, my); ctx.lineTo(mx - 3, my);
@@ -121,7 +130,7 @@ export function HeatmapCanvas({
       ctx.moveTo(mx, my + 3); ctx.lineTo(mx, my + 10);
       ctx.stroke();
     }
-  }, [values, color, xRange, yRange, points, marker, rows, cols, flipY, contour, pointStroke, contourColor]);
+  }, [values, color, xRange, yRange, points, marker, rows, cols, flipY, contour, pointStroke, contourColor, size]);
 
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!onPick || !xRange || !yRange) return;
@@ -221,7 +230,7 @@ export function ContributionBars({
             key={i}
             type="button"
             onClick={() => onSelect?.(i)}
-            className="w-full grid items-center gap-2 text-[11px] rounded px-1 py-0.5 text-left transition-colors hover:bg-white/5"
+            className="w-full grid items-center gap-2 text-[11px] rounded px-1 py-0.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
             style={{ gridTemplateColumns: '52px 1fr 64px', outline: highlight === i ? '1px solid #fde047' : 'none' }}
             title={`${names[i]}: weight ${fmt(weights[i], 4)} × input ${fmt(inputs[i], 4)} = ${fmt(c, 4)}`}
           >
@@ -236,7 +245,7 @@ export function ContributionBars({
                 }}
               />
             </span>
-            <span className="font-mono text-right" style={{ color: c >= 0 ? '#6ee7b7' : '#fca5a5' }}>{fmtSigned(c, 3)}</span>
+            <span className="font-mono text-right" style={{ color: c >= 0 ? 'var(--text-pos)' : 'var(--text-neg)' }}>{fmtSigned(c, 3)}</span>
           </button>
         );
       })}
@@ -290,7 +299,7 @@ export function CompareBars({ before, after, names }: { before: number[]; after:
             </span>
             <span className="font-mono text-right" style={{ color: 'var(--text-primary)' }}>
               {(p * 100).toFixed(1)}%
-              {Math.abs(d) > 0.0005 && <span style={{ color: d > 0 ? '#6ee7b7' : '#fca5a5' }}> {d > 0 ? '▲' : '▼'}{Math.abs(d * 100).toFixed(1)}</span>}
+              {Math.abs(d) > 0.0005 && <span style={{ color: d > 0 ? 'var(--text-pos)' : 'var(--text-neg)' }}> {d > 0 ? '▲' : '▼'}{Math.abs(d * 100).toFixed(1)}</span>}
             </span>
           </div>
         );
