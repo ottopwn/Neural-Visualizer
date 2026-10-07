@@ -171,8 +171,8 @@ export function MiniHistogram({ hist, marker, color = '#60a5fa', height = 56, ma
       <line x1={0} x2={W} y1={height} y2={height} stroke="var(--border-soft)" />
       {mx !== null && mx >= 0 && mx <= W && (
         <g>
-          <line x1={mx} x2={mx} y1={0} y2={height} stroke="#fde047" strokeWidth={1.5} />
-          <text x={Math.min(W - 30, Math.max(0, mx - 15))} y={8} fontSize={8} fill="#fde047">{markerLabel}</text>
+          <line x1={mx} x2={mx} y1={0} y2={height} style={{ stroke: 'var(--select)' }} strokeWidth={1.5} />
+          <text x={Math.min(W - 30, Math.max(0, mx - 15))} y={8} fontSize={8} style={{ fill: 'var(--select)' }}>{markerLabel}</text>
         </g>
       )}
       <text x={0} y={height + 11} fontSize={8} fill="var(--text-muted)">{fmt(lo, 2)}</text>
@@ -197,11 +197,11 @@ export function ActivationCurve({ fn, z, a, natural }: { fn: string; z: number; 
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`${fn} activation curve`}>
       <line x1={P} x2={W - P} y1={sy(0)} y2={sy(0)} stroke="var(--border-soft)" />
       <line x1={sx(0)} x2={sx(0)} y1={P / 2} y2={H - P} stroke="var(--border-soft)" />
-      <path d={path} fill="none" stroke="#93c5fd" strokeWidth={2} />
-      <line x1={sx(z)} x2={sx(z)} y1={sy(0)} y2={sy(dotY)} stroke="#fde047" strokeDasharray="3,3" />
-      <circle cx={sx(z)} cy={sy(dotY)} r={4.5} fill="#fde047" stroke="#111827" strokeWidth={1.5} />
+      <path d={path} fill="none" style={{ stroke: 'var(--accent)' }} strokeWidth={2} />
+      <line x1={sx(z)} x2={sx(z)} y1={sy(0)} y2={sy(dotY)} style={{ stroke: 'var(--select)' }} strokeDasharray="3,3" />
+      <circle cx={sx(z)} cy={sy(dotY)} r={4.5} style={{ fill: 'var(--select)' }} stroke="var(--bg-card)" strokeWidth={1.5} />
       <text x={W - P} y={H - 2} fontSize={9} fill="var(--text-muted)" textAnchor="end">z →</text>
-      <text x={sx(z) + 6} y={Math.max(10, sy(dotY) - 6)} fontSize={9} fill="#fde047">
+      <text x={sx(z) + 6} y={Math.max(10, sy(dotY) - 6)} fontSize={9} style={{ fill: 'var(--select)' }}>
         f({fmt(z, 2)}) = {fmt(dotY, 2)}
       </text>
     </svg>
@@ -231,7 +231,7 @@ export function ContributionBars({
             type="button"
             onClick={() => onSelect?.(i)}
             className="w-full grid items-center gap-2 text-[11px] rounded px-1 py-0.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
-            style={{ gridTemplateColumns: '52px 1fr 64px', outline: highlight === i ? '1px solid #fde047' : 'none' }}
+            style={{ gridTemplateColumns: '52px 1fr 64px', outline: highlight === i ? '1px solid var(--select)' : 'none' }}
             title={`${names[i]}: weight ${fmt(weights[i], 4)} × input ${fmt(inputs[i], 4)} = ${fmt(c, 4)}`}
           >
             <span className="font-mono truncate" style={{ color: 'var(--text-muted)' }}>{names[i]}</span>

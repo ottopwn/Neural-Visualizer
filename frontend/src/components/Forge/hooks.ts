@@ -36,3 +36,19 @@ export function useElementWidth<T extends HTMLElement>(initial = 300): [React.Re
   }, []);
   return [ref, w];
 }
+
+/** Width and height of an element, tracked with a ResizeObserver. */
+export function useElementSize<T extends HTMLElement>(initial = { w: 300, h: 300 }): [React.RefObject<T | null>, { w: number; h: number }] {
+  const ref = useRef<T>(null);
+  const [size, setSize] = useState(initial);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([entry]) => setSize({
+      w: Math.max(120, Math.round(entry.contentRect.width)), h: Math.max(120, Math.round(entry.contentRect.height)),
+    }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, size];
+}

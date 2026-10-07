@@ -52,7 +52,7 @@ export function NeuronPanel({ n, structure }: { n: NeuronInspection; structure: 
             <KV
               k={n.role === 'output' ? 'softmax probability' : `${n.activation_fn}(z)`}
               v={n.role === 'output' ? pct(n.value, 2) : fmt(n.value, 4)}
-              color="#fde047"
+              color="var(--select)"
             />
           </div>
           <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-faint)' }}>Click a bar to inspect that connection.</p>
@@ -72,7 +72,7 @@ export function NeuronPanel({ n, structure }: { n: NeuronInspection; structure: 
 
       {n.role === 'input' && (
         <Section title="Value">
-          <KV k={`${n.name} on this probe`} v={fmt(n.value, 4)} color="#fde047" />
+          <KV k={`${n.name} on this probe`} v={fmt(n.value, 4)} color="var(--select)" />
         </Section>
       )}
 
