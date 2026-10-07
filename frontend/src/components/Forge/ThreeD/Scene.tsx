@@ -275,7 +275,7 @@ export function Scene(props: SceneProps) {
           <button type="button" onClick={() => { onSelect({ kind: 'layer', layer: g }); onFocusLayer(g); }}
             className="whitespace-nowrap text-[11px] font-semibold px-2 py-0.5 rounded-md border"
             style={{ background: 'var(--bg-card)', borderColor: selection?.kind === 'layer' && selection.layer === g ? 'var(--select)' : 'var(--border-soft)', color: palette.text }}
-            title={`Select and focus ${label}`}>
+            title={`Select and focus ${label}`} aria-label={`Select and focus ${label}`}>
             {label} <span style={{ color: 'var(--text-faint)', fontWeight: 400 }}>{sizes[g]}</span>
           </button>
         </Html>

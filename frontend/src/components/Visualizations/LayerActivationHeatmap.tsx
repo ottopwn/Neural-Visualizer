@@ -30,7 +30,7 @@ export function LayerActivationHeatmap({ graph }: Props) {
       map.get(n.layer)!.push(n);
     });
     return [...map.entries()].sort((a, b) => a[0] - b[0]);
-  }, [graph.nodes]);
+  }, [graph]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

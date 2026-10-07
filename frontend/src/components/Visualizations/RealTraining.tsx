@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import * as tf from '@tensorflow/tfjs';
+
+type ActivationIdentifier = NonNullable<Parameters<typeof tf.layers.dense>[0]['activation']>;
 import { Play, Square, Zap } from 'lucide-react';
 import { useNetworkStore } from '../../store/networkStore';
 
@@ -76,7 +78,7 @@ function buildTFModel(neurons: number[], activations: string[], lr: number): tf.
   model.add(tf.layers.dense({ units: neurons[0] ?? 16, inputShape: [2], activation: 'relu' }));
   for (let i = 1; i < neurons.length; i++) {
     const act = (activations[i] ?? 'relu').toLowerCase().replace('leakyrelu', 'leaky_relu');
-    model.add(tf.layers.dense({ units: neurons[i], activation: act as any }));
+    model.add(tf.layers.dense({ units: neurons[i], activation: act as ActivationIdentifier }));
   }
   model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
   model.compile({
@@ -190,7 +192,7 @@ export function RealTraining() {
     results.forEach((r, i) => {
       const x2 = xOf(r.epoch - 1);
       const y2 = pad.top + ch - (r.loss / maxLoss) * ch;
-      i === 0 ? ctx.moveTo(x2, y2) : ctx.lineTo(x2, y2);
+      if (i === 0) ctx.moveTo(x2, y2); else ctx.lineTo(x2, y2);
     });
     ctx.stroke();
 
@@ -200,7 +202,7 @@ export function RealTraining() {
     results.forEach((r, i) => {
       const x2 = xOf(r.epoch - 1);
       const y2 = pad.top + ch - (r.loss / maxLoss) * ch;
-      i === 0 ? ctx.moveTo(x2, y2) : ctx.lineTo(x2, y2);
+      if (i === 0) ctx.moveTo(x2, y2); else ctx.lineTo(x2, y2);
     });
     ctx.lineTo(xOf(results.at(-1)!.epoch - 1), pad.top + ch);
     ctx.lineTo(xOf(0), pad.top + ch);
@@ -214,7 +216,7 @@ export function RealTraining() {
     results.forEach((r, i) => {
       const x2 = xOf(r.epoch - 1);
       const y2 = pad.top + ch - r.acc * ch;
-      i === 0 ? ctx.moveTo(x2, y2) : ctx.lineTo(x2, y2);
+      if (i === 0) ctx.moveTo(x2, y2); else ctx.lineTo(x2, y2);
     });
     ctx.stroke();
 

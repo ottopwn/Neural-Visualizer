@@ -12,3 +12,9 @@ venv/
 node_modules/
 frontend/dist/
 frontend/node_modules/
+
+# Test artefacts
+frontend/test-results/
+frontend/playwright-report/
+.pytest_cache/
+backend/.pytest_cache/
