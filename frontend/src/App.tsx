@@ -8,6 +8,9 @@ import { Forge3DView } from './components/Forge/ThreeD/Forge3DView';
 import { TimeMachineView } from './components/Forge/TimeMachine/TimeMachineView';
 import { ExperimentPanel } from './components/Shell/ExperimentPanel';
 import { InspectorPanel } from './components/Shell/InspectorPanel';
+import { PresentationBar } from './components/Shell/PresentationBar';
+import { GuideToast, Welcome, WELCOME_KEY } from './components/Shell/Welcome';
+import { usePresentation } from './app/demos';
 import { TopBar } from './components/Shell/TopBar';
 import { AnalysisWorkspace } from './components/Workspaces/AnalysisWorkspace';
 import { NetworkWorkspace } from './components/Workspaces/NetworkWorkspace';
@@ -41,11 +44,19 @@ export default function App() {
   const leftOpen = useWorkspace((s) => s.leftOpen);
   const rightOpen = useWorkspace((s) => s.rightOpen);
   const setWelcomeOpen = useWorkspace((s) => s.setWelcomeOpen);
+  const startPresentation = usePresentation((s) => s.start);
   const [cinemaOpen, setCinemaOpen] = useState(false);
   const available = useMemo(() => AVAILABLE, []);
 
   // Keep the classic analysis views (weights, activations, step animations, ...)
   // in sync with the real model graph whenever the Forge session refreshes it.
+  // First visit: offer the guided start once (never forced again).
+  useEffect(() => {
+    let seen = true;
+    try { seen = !!localStorage.getItem(WELCOME_KEY); } catch { /* storage unavailable */ }
+    if (!seen) setWelcomeOpen(true);
+  }, [setWelcomeOpen]);
+
   useEffect(() => onForgeGraph((g) => {
     const s = useNetworkStore.getState();
     s.setGraph({ nodes: g.nodes, edges: g.edges });
@@ -57,7 +68,7 @@ export default function App() {
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
       <a href="#workspace" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:px-3 focus:py-2 focus:rounded-md"
         style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>Skip to workspace</a>
-      <TopBar onDemo={() => setWelcomeOpen(true)} onPresent={() => setWelcomeOpen(true)} availableModes={available} />
+      <TopBar onDemo={() => setWelcomeOpen(true)} onPresent={() => void startPresentation()} availableModes={available} />
 
       <div className="flex flex-1 min-h-0">
         {leftOpen && (
@@ -81,6 +92,9 @@ export default function App() {
         )}
       </div>
 
+      <PresentationBar />
+      <Welcome />
+      <GuideToast />
       {cinemaOpen && <CinemaMode onClose={() => setCinemaOpen(false)} />}
     </div>
   );
