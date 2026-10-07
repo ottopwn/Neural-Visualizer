@@ -45,8 +45,14 @@ export function WeightHistogram({ graph }: Props) {
     const canvas = canvasRef.current;
     if (!canvas || !byLayer.length) return;
     const ctx = canvas.getContext('2d')!;
-    const W = canvas.width, H = canvas.height;
+    // Draw at the displayed size (crisp text at any width; device-pixel aware).
+    const dpr = window.devicePixelRatio || 1;
+    const W = Math.max(300, canvas.clientWidth), H = Math.max(200, canvas.clientHeight);
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
+    const muted = getComputedStyle(canvas).getPropertyValue('--text-muted').trim() || '#9ca3af';
 
     const rows = byLayer.length;
     const rowH = H / rows;
@@ -63,7 +69,7 @@ export function WeightHistogram({ graph }: Props) {
 
       // Row label
       ctx.fillStyle = color;
-      ctx.font = 'bold 9px Inter, sans-serif';
+      ctx.font = '600 12px Inter, sans-serif';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
       ctx.fillText(`L${ri}`, pad.left - 4, y0 + pad.top + plotH / 2);
@@ -102,8 +108,8 @@ export function WeightHistogram({ graph }: Props) {
       ctx.setLineDash([]);
 
       // Stats
-      ctx.fillStyle = 'rgba(156,163,175,0.8)';
-      ctx.font = '8px Inter, sans-serif';
+      ctx.fillStyle = muted;
+      ctx.font = '11px Inter, sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
       ctx.fillText(`n=${weights.length}  μ=${mean.toFixed(3)}`, pad.left + 2, y0 + pad.top + 1);
@@ -119,12 +125,12 @@ export function WeightHistogram({ graph }: Props) {
 
     // Legend
     ctx.fillStyle = 'rgba(250,204,21,0.9)';
-    ctx.font = '9px Inter';
+    ctx.font = '11px Inter';
     ctx.textAlign = 'left';
     ctx.fillText('— mean', W - 58, 4);
     ctx.fillStyle = '#ef4444bb';
     ctx.fillRect(W - 58, 14, 8, 8);
-    ctx.fillStyle = 'rgba(156,163,175,0.7)';
+    ctx.fillStyle = muted;
     ctx.fillText('neg wts', W - 48, 14);
   }, [byLayer]);
 
@@ -145,10 +151,10 @@ export function WeightHistogram({ graph }: Props) {
         <span className="badge-blue text-xs">per layer</span>
       </div>
       <div className="flex-1 rounded-xl overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
-        <canvas ref={canvasRef} className="w-full h-full" width={900} height={600} />
+        <canvas ref={canvasRef} className="w-full h-full" role="img" aria-label="Weight histograms, one row per layer" />
       </div>
       <p className="text-xs text-center" style={{ color: 'var(--text-faint)' }}>
-        Yellow dashed = mean · Red bars = negative weights · Green = positive
+        Yellow dashed = mean · red bars = negative weights · positive weights use the colour of the source layer · rows = source layer
       </p>
     </div>
   );

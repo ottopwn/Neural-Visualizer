@@ -12,6 +12,7 @@ import {
 } from '../../../forge/scene3d';
 import { useForgeStore } from '../../../forge/store';
 import { NeedsModel } from '../../Workspaces/EmptyState';
+import { useElementSize } from '../hooks';
 import { ModelStrip } from '../../Workspaces/NetworkWorkspace';
 import { Scene, type CameraGoal, type Hover, type Palette } from './Scene';
 
@@ -68,6 +69,8 @@ export function Forge3DView() {
   const [limit, setLimit] = useState(600);
   const [pass, setPass] = useState<PassMode>('off');
   const [hover, setHover] = useState<Hover | null>(null);
+  const [viewRef, viewSize] = useElementSize<HTMLDivElement>({ w: 900, h: 600 });
+  const aspect = viewSize.w / Math.max(1, viewSize.h);
 
   const sizes = useMemo(() => session?.structure.layers.map((l) => l.size) ?? [], [session]);
   const layout = useMemo(() => layoutNetwork(sizes.length ? sizes : [1]), [sizes]);
@@ -96,24 +99,24 @@ export function Forge3DView() {
 
   // Camera goals.
   const fitGoal = useCallback((key: number): CameraGoal => {
-    const dist = fitDistance(layout.radius, FOV);
+    const dist = fitDistance(layout.radius, FOV, aspect);
     const dir = new THREE.Vector3(0.42, 0.32, 1).normalize().multiplyScalar(dist);
     const c = layout.center;
     return { position: [c[0] + dir.x, c[1] + dir.y, c[2] + dir.z], target: c, key };
-  }, [layout]);
+  }, [layout, aspect]);
   const [goal, setGoal] = useState<CameraGoal>(() => fitGoal(0));
   // A new architecture: re-fit the camera (derived state, updated during render).
-  const [fittedFor, setFittedFor] = useState(layout);
-  if (fittedFor !== layout) {
-    setFittedFor(layout);
+  const [fittedFor, setFittedFor] = useState({ layout, aspect });
+  if (fittedFor.layout !== layout || Math.abs(fittedFor.aspect - aspect) > 0.15) {
+    setFittedFor({ layout, aspect });
     setGoal(fitGoal(goal.key + 1));
   }
 
   const focusOn = useCallback((target: Vec3, radius: number) => {
-    const dist = Math.max(4.5, fitDistance(radius, FOV) * 1.15);
+    const dist = Math.max(4.5, fitDistance(radius, FOV, aspect) * 1.15);
     const dir = new THREE.Vector3(0.55, 0.3, 1).normalize().multiplyScalar(dist);
     setGoal((g) => ({ position: [target[0] + dir.x, target[1] + dir.y, target[2] + dir.z], target, key: g.key + 1 }));
-  }, []);
+  }, [aspect]);
   const focusLayer = useCallback((g: number) => {
     const e = layout.extents[g];
     focusOn([layout.layerX[g], layout.center[1], layout.center[2]], Math.max(1.5, Math.hypot(e.y, e.z) + 0.8));
@@ -129,7 +132,7 @@ export function Forge3DView() {
     }
   }, [selection, layout, focusOn, focusLayer]);
   const frontView = () => {
-    const dist = fitDistance(layout.radius, FOV);
+    const dist = fitDistance(layout.radius, FOV, aspect);
     setGoal((g) => ({ position: [layout.center[0], layout.center[1], layout.center[2] + dist], target: layout.center, key: g.key + 1 }));
   };
 
@@ -195,7 +198,20 @@ export function Forge3DView() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 relative" data-testid="forge-3d">
+      <div className="flex items-center gap-x-4 gap-y-1 flex-wrap px-3 py-1.5 border-b text-[12px] flex-shrink-0" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }} data-testid="3d-legend">
+        <span className="flex items-center gap-2">
+          <span className="badge-green">REAL</span>
+          <span>epoch {trace?.provenance.checkpoint_epoch ?? '…'}{trace && !trace.provenance.is_latest ? ' (stored checkpoint)' : ' (live)'}{nIv ? ` · what-if ×${nIv}` : ''}</span>
+        </span>
+        <span>Spheres: <b style={{ color: 'var(--text-primary)' }}>{info.node}</b></span>
+        <span>Lines: <b style={{ color: 'var(--text-primary)' }}>{info.edge}</b></span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: 'var(--pos)' }} />positive</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: 'var(--neg)' }} />negative</span>
+        <span style={{ color: 'var(--text-faint)' }}>brightness = |value| / layer max</span>
+        {ablated.size > 0 && <span style={{ color: 'var(--text-warn)' }}>orange ring = disabled by what-if</span>}
+      </div>
+
+      <div className="flex-1 min-h-0 relative" data-testid="forge-3d" ref={viewRef}>
         {trace && (
           <Canvas camera={{ fov: FOV, position: goal.position, near: 0.1, far: 1000 }} dpr={[1, 2]}
             raycaster={{ params: { Line: { threshold: 0.12 } } as THREE.Raycaster['params'] }}
@@ -212,21 +228,6 @@ export function Forge3DView() {
             {hoverText}
           </div>
         )}
-
-        <div className="overlay absolute top-3 left-3 px-3 py-2 text-[12px] space-y-1 max-w-[360px]" style={{ color: 'var(--text-muted)' }}>
-          <div className="flex items-center gap-2">
-            <span className="badge-green">REAL</span>
-            <span>epoch {trace?.provenance.checkpoint_epoch ?? '…'}{trace && !trace.provenance.is_latest ? ' (stored checkpoint)' : ' (live)'}{nIv ? ` · what-if ×${nIv}` : ''}</span>
-          </div>
-          <div>Spheres: <b style={{ color: 'var(--text-primary)' }}>{info.node}</b></div>
-          <div>Lines: <b style={{ color: 'var(--text-primary)' }}>{info.edge}</b></div>
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-full" style={{ background: 'var(--pos)' }} />positive</span>
-            <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-full" style={{ background: 'var(--neg)' }} />negative</span>
-            <span style={{ color: 'var(--text-faint)' }}>brightness = |value| / layer max</span>
-          </div>
-          {ablated.size > 0 && <div style={{ color: 'var(--text-warn)' }}>Orange ring = neuron disabled by what-if</div>}
-        </div>
 
         <div className="overlay absolute bottom-3 left-3 px-3 py-2 text-[12px] flex items-center gap-3 flex-wrap max-w-[calc(100%-24px)]" style={{ color: 'var(--text-muted)' }} data-testid="edge-disclosure">
           <span className="tnum">
