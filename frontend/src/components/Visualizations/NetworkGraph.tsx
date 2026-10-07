@@ -22,17 +22,53 @@ const LAYER_TYPE_COLORS: Record<string, string> = {
   bottleneck: '#c084fc',
 };
 
+const EDIT_COLOR = '#f59e0b';
+const SELECT_COLOR = '#fde047';
+
+/**
+ * - architecture / forward / backward: the original Neural Visualizer modes.
+ * - signal: edges are drawn by their real contribution w·a_source on the
+ *   current probe (requires node values to come from a real model), nodes by
+ *   |activation| relative to their layer.  Used by the Neural Microscope.
+ */
+export type GraphMode = 'architecture' | 'forward' | 'backward' | 'signal';
+
 interface Props {
   graph: GraphData;
   activeNodeIds?: Set<number>;
   activeEdgeIds?: Set<number>;
   gradients?: Record<string, number>;
-  mode?: 'architecture' | 'forward' | 'backward';
+  mode?: GraphMode;
+  // ── Microscope extensions (all optional) ──
+  onNodeClick?: (node: NetworkNode) => void;
+  onLayerClick?: (layer: number) => void;
+  selectedNodeIds?: Set<number>;
+  selectedEdgeIds?: Set<number>;
+  selectedLayer?: number | null;
+  layerLabels?: Record<number, { title: string; subtitle?: string }>;
+  showHint?: boolean;
 }
 
-export function NetworkGraph({ graph, activeNodeIds, activeEdgeIds, gradients, mode = 'architecture' }: Props) {
+interface DrawState {
+  g: d3.Selection<SVGGElement, unknown, null, undefined>;
+  x: d3.ScaleLinear<number, number>;
+  y: d3.ScaleLinear<number, number>;
+}
+
+export function NetworkGraph({
+  graph, activeNodeIds, activeEdgeIds, gradients, mode = 'architecture',
+  onNodeClick, onLayerClick, selectedNodeIds, selectedEdgeIds, selectedLayer, layerLabels, showHint = true,
+}: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const drawRef = useRef<DrawState | null>(null);
+  // Click handlers live in refs so a new callback identity never forces a full redraw.
+  const nodeClickRef = useRef(onNodeClick);
+  const layerClickRef = useRef(onLayerClick);
+  useEffect(() => {
+    nodeClickRef.current = onNodeClick;
+    layerClickRef.current = onLayerClick;
+  });
 
   // Compute scale to fit all nodes
   const { minX, maxX, minY, maxY } = useMemo(() => {
@@ -42,6 +78,9 @@ export function NetworkGraph({ graph, activeNodeIds, activeEdgeIds, gradients, m
     return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
   }, [graph.nodes]);
 
+  const interactive = !!onNodeClick;
+  const layerInteractive = !!onLayerClick;
+
   useEffect(() => {
     if (!svgRef.current || !containerRef.current || !graph.nodes.length) return;
 
@@ -49,6 +88,7 @@ export function NetworkGraph({ graph, activeNodeIds, activeEdgeIds, gradients, m
     const width = container.clientWidth || 800;
     const height = container.clientHeight || 500;
     const pad = 60;
+    const topPad = layerLabels ? 78 : pad;
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
@@ -83,9 +123,22 @@ export function NetworkGraph({ graph, activeNodeIds, activeEdgeIds, gradients, m
 
     // Scales
     const xScale = d3.scaleLinear().domain([minX, maxX]).range([pad, width - pad]);
-    const yScale = d3.scaleLinear().domain([minY, maxY]).range([height - pad, pad]);
+    const yScale = d3.scaleLinear().domain([minY, maxY]).range([height - pad, topPad]);
 
     const nodeById = new Map<number, NetworkNode>(graph.nodes.map((n) => [n.id, n]));
+
+    // Signal mode: normalise per layer so every layer is readable.
+    const maxContribByLayer = new Map<number, number>();
+    const maxValueByLayer = new Map<number, number>();
+    if (mode === 'signal') {
+      graph.edges.forEach((e) => {
+        const c = Math.abs(e.weight * (nodeById.get(e.source)?.value ?? 0));
+        maxContribByLayer.set(e.layer, Math.max(maxContribByLayer.get(e.layer) ?? 0, c));
+      });
+      graph.nodes.forEach((n) => {
+        maxValueByLayer.set(n.layer, Math.max(maxValueByLayer.get(n.layer) ?? 0, Math.abs(n.value ?? 0)));
+      });
+    }
 
     // Background grid
     const gridG = svg.append('g').attr('class', 'grid').attr('opacity', 0.15);
@@ -104,6 +157,34 @@ export function NetworkGraph({ graph, activeNodeIds, activeEdgeIds, gradients, m
       .scaleExtent([0.3, 3])
       .on('zoom', (event) => g.attr('transform', event.transform));
     svg.call(zoom);
+
+    // Layer column headers (clickable in the microscope)
+    if (layerLabels) {
+      const layerX = new Map<number, number>();
+      graph.nodes.forEach((n) => layerX.set(n.layer, n.x));
+      const headerG = g.append('g').attr('class', 'layer-headers');
+      layerX.forEach((lx, layer) => {
+        const label = layerLabels[layer];
+        if (!label) return;
+        const hg = headerG.append('g')
+          .attr('transform', `translate(${xScale(lx)}, ${topPad - 50})`)
+          .attr('cursor', layerInteractive ? 'pointer' : 'default')
+          .attr('data-layer', layer);
+        hg.append('rect')
+          .attr('x', -46).attr('y', -12).attr('width', 92).attr('height', 32).attr('rx', 6)
+          .attr('fill', 'rgba(17,24,39,0.85)').attr('stroke', '#374151');
+        hg.append('text').attr('text-anchor', 'middle').attr('y', 1)
+          .attr('font-size', '10px').attr('font-weight', 600).attr('fill', '#e2e8f0').text(label.title);
+        if (label.subtitle) {
+          hg.append('text').attr('text-anchor', 'middle').attr('y', 13)
+            .attr('font-size', '8.5px').attr('fill', '#9ca3af').text(label.subtitle);
+        }
+        hg.on('click', (event) => {
+          event.stopPropagation();
+          layerClickRef.current?.(layer);
+        });
+      });
+    }
 
     // Edges
     const edgeG = g.append('g').attr('class', 'edges');
@@ -134,13 +215,26 @@ export function NetworkGraph({ graph, activeNodeIds, activeEdgeIds, gradients, m
         return '#ef4444';                             // exploding — red
       })();
 
+      if (mode === 'signal') {
+        const contrib = weight * (src.value ?? 0);
+        const t = Math.abs(contrib) / (maxContribByLayer.get(edge.layer) || 1);
+        edgeG.append('line')
+          .attr('x1', xScale(src.x)).attr('y1', yScale(src.y))
+          .attr('x2', xScale(tgt.x)).attr('y2', yScale(tgt.y))
+          .attr('stroke', edge.edited ? EDIT_COLOR : contrib >= 0 ? '#10b981' : '#ef4444')
+          .attr('stroke-width', edge.edited ? 2 : 0.4 + t * 3.2)
+          .attr('stroke-opacity', edge.edited ? 0.95 : 0.05 + t * 0.85)
+          .attr('stroke-dasharray', edge.edited ? '5,3' : 'none');
+        return;
+      }
+
       const baseColor = weight > 0 ? '#10b981' : '#ef4444';
       const opacity = isActive ? (mode === 'architecture' ? Math.min(0.8, 0.2 + Math.abs(weight) * 0.6) : 0.9) : 0.08;
       const strokeWidth = mode === 'architecture'
         ? Math.max(0.5, Math.min(3, Math.abs(weight) * 2))
         : isActive ? (mode === 'backward' ? Math.max(1, Math.min(4, edgeGradMag * 20)) : 2.5) : 0.5;
 
-      const strokeColor = gradFlowColor
+      const strokeColor = edge.edited ? EDIT_COLOR : gradFlowColor
         ?? (isSkip ? '#3b82f6' : isRecurrent ? '#f59e0b' : isAttention ? '#fb923c' : isActive ? '#60a5fa' : baseColor);
 
       const line = edgeG.append('line')
@@ -151,20 +245,20 @@ export function NetworkGraph({ graph, activeNodeIds, activeEdgeIds, gradients, m
         .attr('stroke', strokeColor)
         .attr('stroke-width', strokeWidth)
         .attr('stroke-opacity', opacity)
-        .attr('stroke-dasharray', isSkip || isRecurrent ? '4,3' : isAttention ? '2,3' : 'none');
+        .attr('stroke-dasharray', isSkip || isRecurrent || edge.edited ? '4,3' : isAttention ? '2,3' : 'none');
 
       if (isActive && mode !== 'architecture') {
         line.attr('filter', 'url(#glow)');
         // Animated signal dot
         const circle = g.append('circle').attr('r', 3).attr('fill', '#60a5fa').attr('opacity', 0);
         circle.append('animateMotion')
-          .attr('dur', `${0.8 + Math.random() * 0.4}s`)
+          .attr('dur', `${0.8 + (i % 5) * 0.1}s`)
           .attr('repeatCount', 'indefinite')
           .attr('path', `M${xScale(src.x)},${yScale(src.y)} L${xScale(tgt.x)},${yScale(tgt.y)}`);
         circle.append('animate')
           .attr('attributeName', 'opacity')
           .attr('values', '0;1;0')
-          .attr('dur', `${0.8 + Math.random() * 0.4}s`)
+          .attr('dur', `${0.8 + (i % 5) * 0.1}s`)
           .attr('repeatCount', 'indefinite');
       }
     });
@@ -183,21 +277,22 @@ export function NetworkGraph({ graph, activeNodeIds, activeEdgeIds, gradients, m
       .style('opacity', '0')
       .style('transition', 'opacity 0.15s')
       .style('z-index', '10')
-      .style('max-width', '200px');
+      .style('max-width', '220px');
 
     graph.nodes.forEach((node) => {
       const cx = xScale(node.x);
       const cy = yScale(node.y);
       const isActive = activeNodeIds ? activeNodeIds.has(node.id) : true;
-      const color = LAYER_TYPE_COLORS[node.layer_type] ?? '#6b7280';
+      const color = node.ablated ? '#4b5563' : LAYER_TYPE_COLORS[node.layer_type] ?? '#6b7280';
       const radius = node.layer_type === 'output' ? 14 : node.layer_type === 'input' ? 12 : 10;
+      const highlighted = isActive && mode !== 'architecture' && mode !== 'signal';
 
       const nodeGroup = nodeG.append('g')
         .attr('transform', `translate(${cx}, ${cy})`)
         .attr('cursor', 'pointer');
 
       // Outer glow ring for active nodes
-      if (isActive && mode !== 'architecture') {
+      if (highlighted) {
         nodeGroup.append('circle')
           .attr('r', radius + 6)
           .attr('fill', 'none')
@@ -208,20 +303,32 @@ export function NetworkGraph({ graph, activeNodeIds, activeEdgeIds, gradients, m
       }
 
       // Value-based fill opacity
-      const fillOpacity = mode === 'architecture' ? 0.85 : isActive ? 1.0 : 0.2;
+      let fillOpacity = mode === 'architecture' ? 0.85 : isActive ? 1.0 : 0.2;
+      if (mode === 'signal') {
+        const m = maxValueByLayer.get(node.layer) || 1;
+        fillOpacity = node.ablated ? 0.5 : 0.18 + 0.82 * Math.min(1, Math.abs(node.value ?? 0) / m);
+      }
 
       // Main circle
       nodeGroup.append('circle')
         .attr('r', radius)
         .attr('fill', color)
         .attr('fill-opacity', fillOpacity)
-        .attr('stroke', isActive ? '#ffffff' : '#374151')
-        .attr('stroke-width', isActive && mode !== 'architecture' ? 2 : 1)
-        .attr('filter', isActive && mode !== 'architecture' ? 'url(#glow)' : 'none');
+        .attr('stroke', node.edited ? EDIT_COLOR : highlighted || mode === 'signal' ? '#ffffff' : '#374151')
+        .attr('stroke-opacity', mode === 'signal' && !node.edited ? 0.35 : 1)
+        .attr('stroke-width', node.edited ? 2.5 : highlighted ? 2 : 1)
+        .attr('filter', highlighted ? 'url(#glow)' : 'none');
 
-      // Value bar inside node
-      if (node.value !== undefined) {
-        const barH = Math.abs(node.value) * (radius - 2);
+      if (node.ablated) {
+        // A disabled neuron: red cross
+        const r = radius * 0.65;
+        nodeGroup.append('path')
+          .attr('d', `M${-r},${-r}L${r},${r}M${r},${-r}L${-r},${r}`)
+          .attr('stroke', '#ef4444').attr('stroke-width', 2.2).attr('stroke-linecap', 'round')
+          .attr('pointer-events', 'none');
+      } else if (node.value !== undefined && mode !== 'signal') {
+        // Value bar inside node
+        const barH = Math.min(1, Math.abs(node.value)) * (radius - 2);
         nodeGroup.append('rect')
           .attr('x', -3)
           .attr('y', node.value >= 0 ? -barH : 0)
@@ -251,18 +358,21 @@ export function NetworkGraph({ graph, activeNodeIds, activeEdgeIds, gradients, m
         .attr('font-weight', '600')
         .attr('fill', 'white')
         .attr('pointer-events', 'none')
-        .text(node.name.length > 8 ? node.name.slice(0, 6) + '…' : node.name);
+        .text(node.ablated ? '' : node.name.length > 8 ? node.name.slice(0, 6) + '…' : node.name);
 
       // Tooltip
       nodeGroup
-        .on('mouseenter', (_event) => {
+        .on('mouseenter', () => {
           tooltip.style('opacity', '1');
           const lines = [
             `<strong style="color:#60a5fa">${node.name}</strong>`,
             `Type: <span style="color:#a3e635">${node.layer_type}</span>`,
             `Value: <span style="color:#34d399">${node.value?.toFixed(4)}</span>`,
+            node.z_val !== undefined && node.z_val !== null ? `z: <span style="color:#93c5fd">${node.z_val.toFixed(4)}</span>` : null,
             node.activation ? `Activation: <span style="color:#fb923c">${node.activation}</span>` : null,
-            node.bias !== undefined ? `Bias: <span style="color:#c084fc">${node.bias.toFixed(4)}</span>` : null,
+            node.bias !== undefined && node.bias !== null ? `Bias: <span style="color:#c084fc">${node.bias.toFixed(4)}</span>` : null,
+            node.ablated ? `<span style="color:#f87171">Disabled (output forced to 0)</span>` : null,
+            interactive ? `<span style="color:#6b7280">Click to inspect</span>` : null,
           ].filter(Boolean).join('<br/>');
           tooltip.html(lines);
         })
@@ -272,13 +382,60 @@ export function NetworkGraph({ graph, activeNodeIds, activeEdgeIds, gradients, m
             .style('left', `${event.clientX - rect.left + 12}px`)
             .style('top', `${event.clientY - rect.top - 10}px`);
         })
-        .on('mouseleave', () => tooltip.style('opacity', '0'));
+        .on('mouseleave', () => tooltip.style('opacity', '0'))
+        .on('click', (event) => {
+          if (!nodeClickRef.current) return;
+          event.stopPropagation();
+          nodeClickRef.current(node);
+        });
     });
+
+    drawRef.current = { g, x: xScale, y: yScale };
 
     return () => {
       tooltip.remove();
+      drawRef.current = null;
     };
-  }, [graph, activeNodeIds, activeEdgeIds, gradients, mode, minX, maxX, minY, maxY]);
+  }, [graph, activeNodeIds, activeEdgeIds, gradients, mode, minX, maxX, minY, maxY, layerLabels, interactive, layerInteractive]);
+
+  // Selection overlay: redrawn alone so selecting never rebuilds thousands of edges.
+  useEffect(() => {
+    const draw = drawRef.current;
+    if (!draw) return;
+    draw.g.select('g.selection').remove();
+    const sel = draw.g.append('g').attr('class', 'selection').attr('pointer-events', 'none');
+    const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
+
+    if (selectedLayer !== null && selectedLayer !== undefined) {
+      const ys = graph.nodes.filter((n) => n.layer === selectedLayer);
+      if (ys.length) {
+        const x = draw.x(ys[0].x);
+        const top = Math.min(...ys.map((n) => draw.y(n.y))) - 20;
+        const bottom = Math.max(...ys.map((n) => draw.y(n.y))) + 20;
+        sel.append('rect')
+          .attr('x', x - 24).attr('y', top).attr('width', 48).attr('height', bottom - top).attr('rx', 12)
+          .attr('fill', 'rgba(253,224,71,0.06)').attr('stroke', SELECT_COLOR).attr('stroke-width', 1.5)
+          .attr('stroke-dasharray', '6,4');
+      }
+    }
+    selectedEdgeIds?.forEach((i) => {
+      const e = graph.edges[i];
+      const s = e && nodeById.get(e.source);
+      const t = e && nodeById.get(e.target);
+      if (!s || !t) return;
+      sel.append('line')
+        .attr('x1', draw.x(s.x)).attr('y1', draw.y(s.y)).attr('x2', draw.x(t.x)).attr('y2', draw.y(t.y))
+        .attr('stroke', SELECT_COLOR).attr('stroke-width', 3).attr('stroke-opacity', 0.95);
+    });
+    selectedNodeIds?.forEach((id) => {
+      const n = nodeById.get(id);
+      if (!n) return;
+      const r = (n.layer_type === 'output' ? 14 : n.layer_type === 'input' ? 12 : 10) + 5;
+      sel.append('circle')
+        .attr('cx', draw.x(n.x)).attr('cy', draw.y(n.y)).attr('r', r)
+        .attr('fill', 'none').attr('stroke', SELECT_COLOR).attr('stroke-width', 2.5);
+    });
+  }, [graph, selectedNodeIds, selectedEdgeIds, selectedLayer, mode, layerLabels, minX, maxX, minY, maxY, activeNodeIds, activeEdgeIds, gradients]);
 
   if (!graph.nodes.length) {
     return (
@@ -300,16 +457,18 @@ export function NetworkGraph({ graph, activeNodeIds, activeEdgeIds, gradients, m
   return (
     <div ref={containerRef} className="w-full h-full relative">
       <svg ref={svgRef} className="w-full h-full" />
-      <div className="absolute bottom-3 left-3 flex flex-wrap gap-1.5">
-        {Object.entries(LAYER_TYPE_COLORS)
-          .filter(([type]) => graph.nodes.some((n) => n.layer_type === type))
-          .map(([type, color]) => (
-            <div key={type} className="flex items-center gap-1 text-xs text-gray-400 bg-gray-900/80 px-2 py-1 rounded-md border border-gray-800">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-              <span className="capitalize">{type}</span>
-            </div>
-          ))}
-      </div>
+      {mode !== 'signal' && (
+        <div className="absolute bottom-3 left-3 flex flex-wrap gap-1.5">
+          {Object.entries(LAYER_TYPE_COLORS)
+            .filter(([type]) => graph.nodes.some((n) => n.layer_type === type))
+            .map(([type, color]) => (
+              <div key={type} className="flex items-center gap-1 text-xs text-gray-400 bg-gray-900/80 px-2 py-1 rounded-md border border-gray-800">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                <span className="capitalize">{type}</span>
+              </div>
+            ))}
+        </div>
+      )}
       {mode === 'backward' && (
         <div className="absolute top-3 right-3 flex items-center gap-2 text-xs bg-gray-900/90 px-2.5 py-1.5 rounded-lg border border-gray-800">
           {[['#3b82f6','vanishing'],['#10b981','healthy'],['#f59e0b','large'],['#ef4444','exploding']].map(([c,l]) => (
@@ -320,7 +479,7 @@ export function NetworkGraph({ graph, activeNodeIds, activeEdgeIds, gradients, m
           ))}
         </div>
       )}
-      {mode !== 'backward' && (
+      {mode !== 'backward' && showHint && (
         <div className="absolute top-3 right-3 text-xs bg-gray-900/80 px-2 py-1 rounded-md border border-gray-800" style={{ color: 'var(--text-faint)' }}>
           Scroll to zoom · Drag to pan
         </div>

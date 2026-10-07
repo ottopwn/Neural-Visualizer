@@ -17,6 +17,11 @@ export interface NetworkNode {
   weights?: number[];
   bias?: number;
   time_step?: number;
+  // Present when the graph comes from a real Forge model session
+  index?: number;
+  grad?: number | null;
+  ablated?: boolean;
+  edited?: boolean;
 }
 
 export interface NetworkEdge {
@@ -25,7 +30,15 @@ export interface NetworkEdge {
   weight: number;
   layer: number;
   type?: string;
+  // Present when the graph comes from a real Forge model session
+  source_index?: number;
+  target_index?: number;
+  grad?: number | null;
+  edited?: boolean;
 }
+
+/** Where the numbers in a graph come from. */
+export type GraphSource = 'model' | 'illustrative';
 
 export interface NetworkGraph {
   nodes: NetworkNode[];
@@ -62,13 +75,15 @@ export interface PropStep {
   active_nodes: number[];
   active_edges: number[];
   layer_type: string;
-  gradients?: Record<string, number>;
+  gradients?: Record<string, number> | null;
 }
 
 export interface TrainingResult {
   loss_history: number[];
   accuracy_history: number[];
   epochs: number[];
+  /** 'pytorch' = real training of the Forge session; absent = legacy synthetic curve. */
+  source?: 'pytorch';
 }
 
 export interface DecisionBoundaryData {
@@ -77,6 +92,8 @@ export interface DecisionBoundaryData {
   zz: number[][];
   X: number[][];
   y: number[];
+  /** 'trained-session' = the Forge session model; absent = legacy untrained model. */
+  source?: 'trained-session';
 }
 
 export interface LossLandscapeData {
@@ -85,4 +102,4 @@ export interface LossLandscapeData {
   loss: number[][];
 }
 
-export type TabId = 'architecture' | 'forward' | 'backward' | 'decision' | 'loss' | 'training' | 'live-train' | 'compare' | 'attention' | 'weights' | 'layer-act' | 'sweep' | 'pruning' | 'custom-act' | 'export';
+export type TabId = 'architecture' | 'forward' | 'backward' | 'decision' | 'loss' | 'training' | 'live-train' | 'compare' | 'attention' | 'weights' | 'layer-act' | 'sweep' | 'pruning' | 'custom-act' | 'export' | 'microscope';

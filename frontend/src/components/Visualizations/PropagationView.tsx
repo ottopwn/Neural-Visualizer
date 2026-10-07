@@ -7,6 +7,7 @@ import type { PropStep } from '../../types';
 interface NetworkViewProps {
   activeNodeIds?: Set<number>;
   activeEdgeIds?: Set<number>;
+  gradients?: Record<string, number>;
   mode?: 'architecture' | 'forward' | 'backward';
 }
 
@@ -102,8 +103,8 @@ export function PropagationView({ steps, mode, NetworkViewComponent }: Props) {
       {/* Graph */}
       <div className="flex-1 min-h-0 rounded-xl overflow-hidden border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
         {NetworkViewComponent
-          ? <NetworkViewComponent activeNodeIds={activeNodeIds} activeEdgeIds={activeEdgeIds} mode={mode} />
-          : <NetworkGraph graph={graph} activeNodeIds={activeNodeIds} activeEdgeIds={activeEdgeIds} gradients={currentStep?.gradients} mode={mode} />
+          ? <NetworkViewComponent activeNodeIds={activeNodeIds} activeEdgeIds={activeEdgeIds} gradients={currentStep?.gradients ?? undefined} mode={mode} />
+          : <NetworkGraph graph={graph} activeNodeIds={activeNodeIds} activeEdgeIds={activeEdgeIds} gradients={currentStep?.gradients ?? undefined} mode={mode} />
         }
       </div>
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { loadPlotly } from '../../lib/plotly';
 import type { TrainingResult } from '../../types';
 
 interface Props {
@@ -12,80 +13,84 @@ export function TrainingCurve({ data }: Props) {
     if (!divRef.current) return;
     if (!data) return;
 
-    const Plotly = (window as any).Plotly;
-    if (!Plotly) return;
+    const el = divRef.current;
+    let cancelled = false;
+    loadPlotly().then((Plotly) => {
+      if (cancelled) return;
 
-    const lossTrace = {
-      type: 'scatter',
-      mode: 'lines+markers',
-      x: data.epochs,
-      y: data.loss_history,
-      name: 'Loss',
-      line: { color: '#ef4444', width: 2.5, shape: 'spline', smoothing: 1.2 },
-      marker: { color: '#ef4444', size: 6, symbol: 'circle' },
-      fill: 'tozeroy',
-      fillcolor: 'rgba(239,68,68,0.08)',
-    };
+      const lossTrace = {
+        type: 'scatter',
+        mode: 'lines+markers',
+        x: data.epochs,
+        y: data.loss_history,
+        name: 'Loss',
+        line: { color: '#ef4444', width: 2.5, shape: 'spline', smoothing: 1.2 },
+        marker: { color: '#ef4444', size: 6, symbol: 'circle' },
+        fill: 'tozeroy',
+        fillcolor: 'rgba(239,68,68,0.08)',
+      };
 
-    const accTrace = {
-      type: 'scatter',
-      mode: 'lines+markers',
-      x: data.epochs,
-      y: data.accuracy_history,
-      name: 'Accuracy',
-      yaxis: 'y2',
-      line: { color: '#10b981', width: 2.5, shape: 'spline', smoothing: 1.2 },
-      marker: { color: '#10b981', size: 6, symbol: 'diamond' },
-    };
+      const accTrace = {
+        type: 'scatter',
+        mode: 'lines+markers',
+        x: data.epochs,
+        y: data.accuracy_history,
+        name: 'Accuracy',
+        yaxis: 'y2',
+        line: { color: '#10b981', width: 2.5, shape: 'spline', smoothing: 1.2 },
+        marker: { color: '#10b981', size: 6, symbol: 'diamond' },
+      };
 
-    const layout = {
-      paper_bgcolor: 'rgba(0,0,0,0)',
-      plot_bgcolor: 'rgba(0,0,0,0)',
-      margin: { t: 30, r: 60, b: 50, l: 50 },
-      xaxis: {
-        title: { text: 'Epoch', font: { color: '#6b7280', size: 12 } },
-        tickfont: { color: '#9ca3af', size: 10 },
-        gridcolor: '#1f2937',
-        zerolinecolor: '#374151',
-      },
-      yaxis: {
-        title: { text: 'Loss', font: { color: '#ef4444', size: 12 } },
-        tickfont: { color: '#9ca3af', size: 10 },
-        gridcolor: '#1f2937',
-        zerolinecolor: '#374151',
-        rangemode: 'tozero',
-      },
-      yaxis2: {
-        title: { text: 'Accuracy', font: { color: '#10b981', size: 12 } },
-        tickfont: { color: '#9ca3af', size: 10 },
-        overlaying: 'y',
-        side: 'right',
-        range: [0, 1.05],
-        showgrid: false,
-      },
-      legend: {
-        bgcolor: 'rgba(17,24,39,0.8)',
-        bordercolor: '#374151',
-        borderwidth: 1,
-        font: { color: '#d1d5db', size: 11 },
-        x: 0.5,
-        xanchor: 'center',
-        y: 1.05,
-        orientation: 'h',
-      },
-      font: { family: 'Inter, system-ui, sans-serif' },
-      hovermode: 'x unified',
-      hoverlabel: {
-        bgcolor: '#111827',
-        bordercolor: '#374151',
-        font: { color: '#e2e8f0', size: 12 },
-      },
-    };
+      const layout = {
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        margin: { t: 30, r: 60, b: 50, l: 50 },
+        xaxis: {
+          title: { text: 'Epoch', font: { color: '#6b7280', size: 12 } },
+          tickfont: { color: '#9ca3af', size: 10 },
+          gridcolor: '#1f2937',
+          zerolinecolor: '#374151',
+        },
+        yaxis: {
+          title: { text: 'Loss', font: { color: '#ef4444', size: 12 } },
+          tickfont: { color: '#9ca3af', size: 10 },
+          gridcolor: '#1f2937',
+          zerolinecolor: '#374151',
+          rangemode: 'tozero',
+        },
+        yaxis2: {
+          title: { text: 'Accuracy', font: { color: '#10b981', size: 12 } },
+          tickfont: { color: '#9ca3af', size: 10 },
+          overlaying: 'y',
+          side: 'right',
+          range: [0, 1.05],
+          showgrid: false,
+        },
+        legend: {
+          bgcolor: 'rgba(17,24,39,0.8)',
+          bordercolor: '#374151',
+          borderwidth: 1,
+          font: { color: '#d1d5db', size: 11 },
+          x: 0.5,
+          xanchor: 'center',
+          y: 1.05,
+          orientation: 'h',
+        },
+        font: { family: 'Inter, system-ui, sans-serif' },
+        hovermode: 'x unified',
+        hoverlabel: {
+          bgcolor: '#111827',
+          bordercolor: '#374151',
+          font: { color: '#e2e8f0', size: 12 },
+        },
+      };
 
-    Plotly.react(divRef.current, [lossTrace, accTrace], layout, {
-      responsive: true,
-      displayModeBar: false,
+      Plotly.react(el, [lossTrace, accTrace], layout, {
+        responsive: true,
+        displayModeBar: false,
+      });
     });
+    return () => { cancelled = true; };
   }, [data]);
 
   if (!data) {
