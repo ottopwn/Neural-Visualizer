@@ -39,7 +39,7 @@ function NodeSphere({
   onClick: () => void;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const hex = LAYER_COLORS[node.layer_type] ?? '#6b7280';
+  const hex = node.ablated ? '#4b5563' : LAYER_COLORS[node.layer_type] ?? '#6b7280';
   const color = useMemo(() => new THREE.Color(hex), [hex]);
 
   // Tiny radius: 0.07 base, slightly larger for IO nodes
@@ -173,12 +173,11 @@ function Particle({
 // ── Starfield ────────────────────────────────────────────────────────────────
 function Starfield() {
   const positions = useMemo(() => {
+    // Deterministic LCG keeps render pure (decorative background only)
+    let seed = 1234567;
+    const rand = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
     const arr = new Float32Array(500 * 3);
-    for (let i = 0; i < 500; i++) {
-      arr[i * 3]     = (Math.random() - 0.5) * 60;
-      arr[i * 3 + 1] = (Math.random() - 0.5) * 60;
-      arr[i * 3 + 2] = (Math.random() - 0.5) * 60;
-    }
+    for (let i = 0; i < 500 * 3; i++) arr[i] = (rand() - 0.5) * 60;
     return arr;
   }, []);
   return (
@@ -307,11 +306,25 @@ interface Props {
   activeNodeIds?: Set<number>;
   activeEdgeIds?: Set<number>;
   mode?: 'architecture' | 'forward' | 'backward';
+  /** Controlled selection (Neural Microscope). When set, clicks are reported instead of shown inline. */
+  onNodeClick?: (node: NetworkNode) => void;
+  selectedNodeId?: number | null;
 }
 
-export function Network3DView({ graph, activeNodeIds, activeEdgeIds }: Props) {
-  const [autoOrbit, setAutoOrbit] = useState(true);
-  const [selected, setSelected] = useState<NetworkNode | null>(null);
+export function Network3DView({ graph, activeNodeIds, activeEdgeIds, onNodeClick, selectedNodeId }: Props) {
+  const [autoOrbit, setAutoOrbit] = useState(!onNodeClick);
+  const [ownSelected, setOwnSelected] = useState<NetworkNode | null>(null);
+  const controlled = !!onNodeClick;
+  const selected = controlled
+    ? graph.nodes.find((n) => n.id === selectedNodeId) ?? null
+    : ownSelected;
+  const setSelected = (n: NetworkNode | null) => {
+    if (controlled) {
+      if (n) onNodeClick(n);
+    } else {
+      setOwnSelected(n);
+    }
+  };
   const canvasRef = useRef<HTMLDivElement>(null);
 
   if (!graph.nodes.length) {
@@ -348,7 +361,7 @@ export function Network3DView({ graph, activeNodeIds, activeEdgeIds }: Props) {
       </Canvas>
 
       {/* HTML tooltip — positioned over canvas using CSS absolute */}
-      {selected && (() => {
+      {selected && !controlled && (() => {
         const hex = LAYER_COLORS[selected.layer_type] ?? '#6b7280';
         return (
           <div

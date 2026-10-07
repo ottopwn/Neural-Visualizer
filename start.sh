@@ -12,7 +12,7 @@ cd ../frontend && npm run dev &
 FRONTEND_PID=$!
 
 echo ""
-echo "  Backend  →  http://localhost:8000"ron
+echo "  Backend  →  http://localhost:8000"
 echo "  Frontend →  http://localhost:5173"
 echo ""
 echo "Press Ctrl+C to stop both servers."

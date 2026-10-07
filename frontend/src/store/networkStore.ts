@@ -9,6 +9,7 @@ import type {
   LossLandscapeData,
   TabId,
   ModelType,
+  GraphSource,
 } from '../types';
 import type { ParsedDataset } from '../components/DatasetUpload';
 
@@ -19,6 +20,7 @@ interface NetworkState {
 
   // Data
   graph: NetworkGraph;
+  graphSource: GraphSource;
   forwardSteps: PropStep[];
   backwardSteps: PropStep[];
   trainingResult: TrainingResult | null;
@@ -38,10 +40,11 @@ interface NetworkState {
   setNetworkConfig: (cfg: Partial<NetworkConfig>) => void;
   setTrainingConfig: (cfg: Partial<TrainingConfig>) => void;
   setGraph: (g: NetworkGraph) => void;
+  setGraphSource: (s: GraphSource) => void;
   setForwardSteps: (s: PropStep[]) => void;
   setBackwardSteps: (s: PropStep[]) => void;
-  setTrainingResult: (r: TrainingResult) => void;
-  setDecisionBoundary: (d: DecisionBoundaryData) => void;
+  setTrainingResult: (r: TrainingResult | null) => void;
+  setDecisionBoundary: (d: DecisionBoundaryData | null) => void;
   setLossLandscape: (l: LossLandscapeData) => void;
   setActiveTab: (t: TabId) => void;
   setLoading: (v: boolean) => void;
@@ -88,13 +91,14 @@ export const useNetworkStore = create<NetworkState>((set) => ({
     loss_fn: 'Binary Cross Entropy',
   },
   graph: { nodes: [], edges: [] },
+  graphSource: 'illustrative',
   forwardSteps: [],
   backwardSteps: [],
   trainingResult: null,
   decisionBoundary: null,
   lossLandscape: null,
   customDataset: null,
-  activeTab: 'architecture',
+  activeTab: 'microscope',
   isLoading: false,
   error: null,
   propStep: 0,
@@ -106,6 +110,7 @@ export const useNetworkStore = create<NetworkState>((set) => ({
   setTrainingConfig: (cfg) =>
     set((s) => ({ trainingConfig: { ...s.trainingConfig, ...cfg } })),
   setGraph: (g) => set({ graph: g }),
+  setGraphSource: (graphSource) => set({ graphSource }),
   setForwardSteps: (steps) => set({ forwardSteps: steps }),
   setBackwardSteps: (steps) => set({ backwardSteps: steps }),
   setTrainingResult: (r) => set({ trainingResult: r }),

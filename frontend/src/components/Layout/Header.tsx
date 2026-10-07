@@ -35,12 +35,12 @@ export function Header({ onCinema, cinemaDisabled, onTutorial }: Props) {
           >
             <Activity size={16} className="text-white" />
           </div>
-          <span className="text-gradient font-bold text-lg tracking-tight">Neural Visualizer</span>
+          <span className="text-gradient font-bold text-lg tracking-tight">Neural Forge</span>
         </div>
 
         <span className="hidden sm:block text-sm mx-1" style={{ color: 'var(--border-soft)' }}>|</span>
         <span className="hidden sm:block text-sm" style={{ color: 'var(--text-muted)' }}>
-          Interactive deep learning exploration
+          Inspect, intervene, understand
         </span>
 
         <div className="ml-auto flex items-center gap-2">

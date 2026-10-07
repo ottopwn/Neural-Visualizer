@@ -14,8 +14,9 @@ from compute import (
     get_forward_propagation_steps,
     get_backward_propagation_steps,
 )
+from forge.api import router as forge_router
 
-app = FastAPI(title="Neural Visualizer API", version="2.0.0")
+app = FastAPI(title="Neural Forge API", version="3.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,7 +26,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory state
+# Neural Forge: real-model introspection, interventions, checkpoints
+app.include_router(forge_router)
+
+# In-memory state (legacy illustrative graph)
 _network_graph = {"nodes": [], "edges": []}
 _last_config = {}
 
@@ -65,7 +69,7 @@ def health():
 @app.post("/api/build-network")
 def build_network(config: NetworkConfig):
     global _network_graph, _last_config
-    _last_config = config.dict()
+    _last_config = config.model_dump()
     neurons = config.neurons[:config.n_layers]
     activations = config.activations[:config.n_layers]
     _network_graph = build_network_graph(config.n_layers, neurons, activations, config.model_type)
