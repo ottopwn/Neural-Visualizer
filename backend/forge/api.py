@@ -13,6 +13,7 @@ from datasets import generate_dataset
 from . import schema as S
 from .checkpoints import DEFAULT_CAPACITY
 from .introspect import IntrospectionError, MLPIntrospector
+from .landscape import LossLandscape, loss_landscape
 from .mlp import SUPPORTED_ACTIVATIONS, MLPSpec
 from .session import ModelSession, SessionRegistry, TrainingSettings, create_session
 from .timemachine import TimeMachine
@@ -85,6 +86,7 @@ def capabilities():
         "supported_model_types": ["ANN"],
         "activations": list(SUPPORTED_ACTIVATIONS),
         "interventions": ["ablate_neuron", "set_weight", "set_bias"],
+        "pass_explorer": {"trace": True, "sgd_preview": True},
         "time_machine": {"checkpoint_capacity": DEFAULT_CAPACITY, "interventions_in_history": False},
         "limits": {"max_neurons": MAX_NEURONS, "max_layers": MAX_LAYERS},
         "unsupported_note": (
@@ -166,9 +168,30 @@ def inspect(session_id: str, req: S.InspectRequest):
     return _with_session(session_id, lambda i: i.inspect(req))
 
 
+@router.post("/sessions/{session_id}/trace", response_model=S.ComputationTrace)
+def trace(session_id: str, req: S.TraceRequest):
+    """Every forward tensor and backward gradient of one probe (Pass Explorer, 3D view)."""
+    return _with_session(session_id, lambda i: i.trace(req))
+
+
 @router.post("/sessions/{session_id}/compare", response_model=S.Comparison)
 def compare(session_id: str, req: S.ExperimentRequest):
     return _with_session(session_id, lambda i: i.compare(req))
+
+
+class LandscapeRequest(BaseModel):
+    checkpoint_epoch: Optional[int] = None
+
+
+@router.post("/sessions/{session_id}/loss-landscape", response_model=LossLandscape)
+def landscape(session_id: str, req: LandscapeRequest):
+    """A real 2-D loss slice around the live weights or a stored checkpoint."""
+    session = _get(session_id)
+    with session.lock:
+        try:
+            return loss_landscape(session, req.checkpoint_epoch)
+        except KeyError as exc:
+            raise _bad(exc)
 
 
 # ── Training Time Machine ───────────────────────────────────────────────────
