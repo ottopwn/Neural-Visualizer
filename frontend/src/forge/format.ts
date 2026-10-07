@@ -67,3 +67,19 @@ export function maxAbs(values: number[]): number {
 export function rankByMagnitude(values: number[]): number[] {
   return values.map((_, i) => i).sort((a, b) => Math.abs(values[b]) - Math.abs(values[a]));
 }
+
+/** Equal-width histogram of `values` (empty-safe; a constant input gets one centred bin range). */
+export function histogramOf(values: number[], bins = 24): { edges: number[]; counts: number[] } {
+  if (!values.length) return { edges: [0, 1], counts: [0] };
+  let lo = Math.min(...values);
+  let hi = Math.max(...values);
+  if (hi - lo < 1e-12) { lo -= 0.5; hi += 0.5; }
+  const width = (hi - lo) / bins;
+  const counts = new Array(bins).fill(0);
+  for (const v of values) counts[Math.min(bins - 1, Math.floor((v - lo) / width))] += 1;
+  return { edges: Array.from({ length: bins + 1 }, (_, i) => lo + i * width), counts };
+}
+
+export function mean(values: number[]): number {
+  return values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+}

@@ -22,7 +22,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from .checkpoints import CheckpointStore
+from .checkpoints import DEFAULT_CAPACITY, CheckpointStore
 from .mlp import MLPSpec, Params, clone_params, forward, init_params
 
 
@@ -46,7 +46,8 @@ class ModelSession:
     dataset_name: str
     seed: int = 0
     epoch: int = 0
-    history: List[Dict[str, float]] = field(default_factory=list)
+    history: List[Dict] = field(default_factory=list)
+    runs: List[Dict] = field(default_factory=list)  # one entry per train() call
     checkpoints: CheckpointStore = field(default_factory=CheckpointStore)
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
@@ -67,16 +68,32 @@ class ModelSession:
         return ckpt.params
 
     # ── training ─────────────────────────────────────────────────────────
-    def record(self) -> None:
-        metrics = self.evaluate()
-        self.history.append({"epoch": self.epoch, **metrics})
-        self.checkpoints.add(self.epoch, self.params, metrics)
+    def record(self, stats: Optional[Dict] = None) -> None:
+        """Log the current epoch and offer a snapshot to the checkpoint store.
 
-    def train(self, settings: TrainingSettings) -> List[Dict[str, float]]:
+        ``stats`` are optional training statistics measured while producing
+        this epoch (see ``train``); epoch 0 has none.
+        """
+        metrics = self.evaluate()
+        row = {"epoch": self.epoch, **metrics, **(stats or {})}
+        self.history.append(row)
+        scalars = {k: v for k, v in row.items() if k != "epoch" and isinstance(v, float)}
+        self.checkpoints.add(self.epoch, self.params, scalars)
+
+    def train(self, settings: TrainingSettings) -> List[Dict]:
         """Real mini-batch training with Adam + cross-entropy.
 
         Training continues from the current parameters; history and
         checkpoints are appended (epochs keep counting up).
+
+        Per epoch it also records, at negligible cost:
+
+        * ``layer_grad_norms`` / ``grad_norm`` -- the L2 norm of the gradient
+          actually used for each optimiser step (loss incl. regularisation),
+          per dense layer (weights and bias together) and over all
+          parameters, averaged over the epoch's mini-batches;
+        * ``layer_update_norms`` / ``update_norm`` -- ``||theta_end - theta_start||``
+          of the epoch, per dense layer and overall.
         """
         params = clone_params(self.params, requires_grad=True)
         flat = [t for p in params for t in (p.weight, p.bias)]
@@ -84,10 +101,19 @@ class ModelSession:
         gen = torch.Generator().manual_seed(settings.seed + self.epoch)
         n = self.X.shape[0]
         bs = max(1, min(settings.batch_size, n))
-        new_rows: List[Dict[str, float]] = []
+        new_rows: List[Dict] = []
+        self.runs.append({
+            "start_epoch": self.epoch, "end_epoch": self.epoch + settings.epochs,
+            "learning_rate": settings.learning_rate, "batch_size": bs,
+            "reg_type": settings.reg_type or "None", "reg_rate": settings.reg_rate,
+        })
 
         for _ in range(settings.epochs):
             perm = torch.randperm(n, generator=gen)
+            start_params = clone_params(params)
+            layer_norm_sums = torch.zeros(len(params))
+            global_norm_sum = 0.0
+            steps = 0
             for start in range(0, n, bs):
                 idx = perm[start:start + bs]
                 trace = forward(self.spec, params, self.X[idx])
@@ -95,10 +121,23 @@ class ModelSession:
                 loss = loss + _regularisation(params, settings.reg_type, settings.reg_rate)
                 opt.zero_grad()
                 loss.backward()
+                with torch.no_grad():
+                    layer_sq = torch.stack([p.weight.grad.pow(2).sum() + p.bias.grad.pow(2).sum() for p in params])
+                    layer_norm_sums += layer_sq.sqrt()
+                    global_norm_sum += float(layer_sq.sum().sqrt())
+                steps += 1
                 opt.step()
             self.params = clone_params(params)
             self.epoch += 1
-            self.record()
+            with torch.no_grad():
+                update_sq = [float((a.weight - b.weight).pow(2).sum() + (a.bias - b.bias).pow(2).sum())
+                             for a, b in zip(self.params, start_params)]
+            self.record({
+                "grad_norm": global_norm_sum / steps,
+                "update_norm": float(sum(update_sq) ** 0.5),
+                "layer_grad_norms": [float(v) / steps for v in layer_norm_sums],
+                "layer_update_norms": [u ** 0.5 for u in update_sq],
+            })
             new_rows.append(self.history[-1])
         return new_rows
 
@@ -124,7 +163,7 @@ def create_session(
     y: np.ndarray,
     dataset_name: str,
     seed: int = 0,
-    checkpoint_capacity: int = 32,
+    checkpoint_capacity: int = DEFAULT_CAPACITY,
 ) -> ModelSession:
     session = ModelSession(
         id=uuid.uuid4().hex,

@@ -9,6 +9,8 @@ import { Network3DView } from '../Visualizations/Network3DView';
 import { Inspector } from './Inspector';
 import { ProbePicker } from './ProbePicker';
 import { WhatIfPanel } from './WhatIfPanel';
+import { ForgeStatePill } from './TimeMachine/StatePill';
+import { TimelineInstrument, Transport } from './TimeMachine/TimelineInstrument';
 
 function Unsupported({ modelType, built }: { modelType: string; built: boolean }) {
   return (
@@ -48,8 +50,6 @@ export function MicroscopeView() {
   const setMode = useForgeStore((s) => s.setMode);
   const loading = useForgeStore((s) => s.loading);
   const error = useForgeStore((s) => s.error);
-  const checkpointEpoch = useForgeStore((s) => s.checkpointEpoch);
-  const setCheckpoint = useForgeStore((s) => s.setCheckpoint);
   const modelType = useNetworkStore((s) => s.networkConfig.model_type);
   const built = useNetworkStore((s) => s.networkBuilt);
   const view3D = useNetworkStore((s) => s.view3D);
@@ -78,19 +78,12 @@ export function MicroscopeView() {
           </span>
           <span style={{ color: 'var(--text-faint)' }}>{structure.param_count} params · {session.dataset_name}</span>
 
-          <label className="flex items-center gap-1.5 ml-2" style={{ color: 'var(--text-muted)' }}>
-            Weights
-            <select
-              className="select-base !w-auto !py-1 !px-2 !text-xs"
-              value={checkpointEpoch === null ? 'live' : String(checkpointEpoch)}
-              onChange={(e) => setCheckpoint(e.target.value === 'live' ? null : Number(e.target.value))}
-            >
-              <option value="live">live · epoch {session.epoch}</option>
-              {session.checkpoints.filter((c) => c.epoch !== session.epoch).slice().reverse().map((c) => (
-                <option key={c.epoch} value={c.epoch}>checkpoint · epoch {c.epoch} · acc {(c.accuracy * 100).toFixed(0)}%</option>
-              ))}
-            </select>
-          </label>
+          <div className="flex items-center gap-2 ml-1 rounded-lg border px-2 py-1 min-w-[420px] flex-1 max-w-[680px]"
+            style={{ borderColor: 'var(--border)' }} title="Training timeline: choose which stored checkpoint the microscope shows">
+            <div className="flex-1 min-w-[150px]"><TimelineInstrument lab={false} compact /></div>
+            <Transport compact />
+          </div>
+          <ForgeStatePill />
 
           {loading && <Loader2 size={13} className="animate-spin" style={{ color: 'var(--text-faint)' }} />}
           {error && (

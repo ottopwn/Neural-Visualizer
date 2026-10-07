@@ -188,16 +188,27 @@ class MLPIntrospector:
     def run_probe(self, req: S.ExperimentRequest) -> ProbeRun:
         base, epoch = self._params(req.checkpoint_epoch)
         compiled = self.compile(req.interventions, base)
-        x_vec, sample_index, label = self._probe_x(req.probe)
+        trace, params, x, resolved = self.probe_pass(compiled, req.probe)
+        return ProbeRun(resolved, trace, params, base, compiled, x,
+                        self._provenance(epoch, len(req.interventions)))
 
+    def probe_pass(
+        self, compiled: CompiledInterventions, probe: S.Probe,
+    ) -> Tuple[ForwardTrace, Params, torch.Tensor, S.ResolvedProbe]:
+        """One instrumented forward + backward pass of ``compiled`` on the probe.
+
+        Works on clones, so the parameters behind ``compiled`` (live weights
+        or a stored checkpoint) are never touched.
+        """
+        x_vec, sample_index, label = self._probe_x(probe)
         params = clone_params(compiled.params, requires_grad=True)
         x = x_vec.unsqueeze(0).requires_grad_(True)
         trace = forward(self.spec, params, x, compiled.neuron_masks, retain_grad=True)
 
-        if req.probe.target is not None:
-            if not 0 <= req.probe.target < self.spec.n_classes:
+        if probe.target is not None:
+            if not 0 <= probe.target < self.spec.n_classes:
                 raise IntrospectionError("target out of range")
-            target, source = req.probe.target, "user"
+            target, source = probe.target, "user"
         elif label is not None:
             target, source = label, "label"
         else:
@@ -210,8 +221,7 @@ class MLPIntrospector:
             x=_floats(x_vec), sample_index=sample_index, label=label,
             target=target, target_source=source,
         )
-        return ProbeRun(resolved, trace, params, base, compiled, x,
-                        self._provenance(epoch, len(req.interventions)))
+        return trace, params, x, resolved
 
     def dataset_trace(self, compiled: CompiledInterventions, X: Optional[torch.Tensor] = None) -> ForwardTrace:
         with torch.no_grad():

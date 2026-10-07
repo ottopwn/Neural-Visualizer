@@ -79,15 +79,22 @@ internal unless a model computed it.**
   flip rate and decision regions.
 * Provenance badges everywhere (`REAL MODEL VALUES` vs `ILLUSTRATIVE VALUES`).
 
-### M2 — Training Time Machine (next)
-The backend already stores checkpoints and every introspection endpoint accepts `checkpoint_epoch`.
-* Timeline scrubber (replace the "Weights" select) with loss/accuracy sparkline and checkpoint ticks.
-* Diff views between two epochs: per-layer weight-change norms, per-neuron activation drift, decision
-  boundary morph (grids are already produced per request).
-* Optional: record per-epoch gradient norms during training (cheap) for a "gradient health" lane.
-* Storage: keep thinning; if needed add float16 deltas against the previous kept checkpoint.
+### M2 — Training Time Machine (done)
+* New *Time Machine* tab: timeline instrument (real loss/accuracy log, checkpoint ticks, training events,
+  drag-to-scrub, step, first/latest, play/pause at 0.5–4×, back to live, linear/even axis, keyboard).
+* Per-checkpoint frames: decision regions with the 0.5 contour, misclassified points, change since the previous
+  checkpoint; Learn-mode narration from real numbers.
+* The selected neuron/layer/connection followed through time (history charts, historical Microscope).
+* Epoch A ↔ B comparison: metric deltas, prediction changes (fixed/broken), decision regions A/B/difference,
+  per-layer parameter change, selected component side by side.
+* Training health (Lab): per-epoch gradient and update norms logged during real training; dead/saturated
+  fractions and norms measured per checkpoint.
+* Checkpoint retention replaced: balanced linear/log spacing, capacity 48, immutability enforced and tested.
+* The Microscope's Weights select became a compact timeline; LIVE / HISTORICAL / WHAT-IF labels everywhere.
+* Not done (candidates): float16 delta storage, more than two epochs compared at once, history export.
 
-### M3 — Real backprop playback and 3D upgrade
+### M3 — Real backprop playback and 3D upgrade (next)
+* Combine with the Time Machine: replay one probe's forward and backward pass *at any checkpoint*, step by step.
 * Drive the Forward/Backprop tabs and Cinema Mode from the real trace (values per step, not just
   highlighting); colour 3D nodes/edges by real activation and gradient magnitude; animate signal intensity
   proportional to `w·a`.
@@ -109,4 +116,6 @@ The backend already stores checkpoints and every introspection endpoint accepts 
 * Make the remaining legacy endpoints honest or remove them (`simulate-training`, random backprop
   gradients for illustrative graphs).
 * Fix the 16 remaining pre-existing ESLint errors in untouched files.
-* E2E browser tests (Playwright) for the microscope flow.
+* E2E browser tests (Playwright) for the microscope and time-machine flows (M2 was verified manually in a real
+  browser with scripted Playwright runs, which are not yet part of the repository's test suite).
+* The `NetworkGraph` layer headers overlap when the graph pane is narrow (pre-existing component).

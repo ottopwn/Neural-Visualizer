@@ -34,8 +34,36 @@ https://github.com/user-attachments/assets/fc5b9114-0085-40b6-bdf9-fa3208ce19ff
 
 ## 🔬 New in Neural Forge
 
-> Status: first milestone. The Microscope and What-if mode work for **ANN (MLP) models**.
-> Other model types are still drawn as illustrative diagrams and are labelled as such.
+> Status: second milestone. The Microscope, What-if mode and the Training Time Machine work for
+> **ANN (MLP) models**. Other model types are still drawn as illustrative diagrams and are labelled as such.
+
+### Training Time Machine (tab *Forge → Time Machine*)
+Every training epoch stores an immutable checkpoint of the real model. The Time Machine lets you travel
+through that history and watch the network learn:
+
+- **Timeline instrument** — the real per-epoch loss and accuracy curves, a tick for every stored checkpoint,
+  markers for notable events (first ≥ 90 % accuracy, best accuracy, lowest loss, largest loss drop, start of each
+  training run with its learning rate / batch size). Click or drag to travel (snaps to stored checkpoints), step
+  backward/forward, jump to first/latest, **play / pause** at 0.5×–4×, and **Back to live**. Keyboard: Space, ←/→, Home/End.
+  A *linear* or *even* (checkpoints evenly spaced) time axis.
+- **Decision regions per epoch** — the real P(class 1) map of the checkpoint under the playhead with the 0.5 contour,
+  the dataset, and rings on the points it misclassifies; loss, accuracy, mistakes and how many points changed
+  prediction since the previous checkpoint.
+- **The same neuron through time** — select a neuron, layer or connection; it stays selected while you move. The
+  *Through time* panel charts its bias, weight norms, activation on the probe, dataset activation statistics and
+  gradients at every checkpoint, and the Microscope shows its full historical inspection.
+- **Compare A ↔ B** — pick two checkpoints (or drag the A/B markers): loss / accuracy / confidence deltas, how many
+  predictions changed (and how many became correct or wrong), decision regions A, B and *where the class changed*,
+  per-layer parameter change (‖ΔW‖, ‖Δb‖, relative change, most-changed neurons), the probe's prediction, and the
+  selected component side by side (with its response maps on a shared colour scale).
+- **Training health (Lab)** — per layer: weight norm, the training gradient norm and update size logged during the
+  real run, dead-neuron and saturation fractions measured on each checkpoint.
+- **Learn mode** narrates what changed, using only the real numbers (e.g. *"Between epoch 2 and epoch 50, accuracy
+  increased from 63.5% to 99.5% while the loss decreased from 0.6287 to 0.0212"*).
+- Clear state labels everywhere: **LIVE**, **HISTORICAL · EPOCH n** (stored checkpoint), **WHAT-IF ×n** (temporary overlay).
+  What-if edits can be tried on a historical checkpoint; they never modify it.
+
+The Microscope's old *Weights* selector is replaced by a compact version of the same timeline.
 
 ### Neural Microscope (tab *Forge → Microscope*)
 Build an **ANN**, train it, then click any neuron, layer header, or contribution bar. Everything shown is
@@ -48,7 +76,7 @@ computed by a PyTorch forward/backward pass of *your* model on a probe input you
 - **Layer** — weight matrix heatmap, bias and activation statistics, never-active neurons, `dL/dW`, tensor shapes.
 - **Connection** — weight, carried signal, share of the target's input and rank, gradient, dataset-wide statistics.
 - **Probe input** — click a dataset point (true label used for gradients) or any free point on the decision map.
-- **Weights selector** — inspect any stored training checkpoint (e.g. epoch 0 vs. epoch 50).
+- **Timeline** — inspect any stored training checkpoint (e.g. epoch 0 vs. epoch 50); see the Time Machine below.
 - **Learn / Lab modes** — Learn explains each component in plain language generated from the real values;
   Lab exposes the numbers, equations, gradients and shapes.
 - Graph "signal" view: edge thickness/colour = real contribution `w·a` on the current probe.
@@ -144,7 +172,7 @@ Choose from **4 synthetic datasets** with adjustable noise:
 Neural-Visualizer/
 ├── backend/                # Python FastAPI server
 │   ├── main.py             # REST API endpoints (legacy + mounts /api/forge)
-│   ├── forge/              # Neural Forge: real MLP, introspection, interventions, checkpoints
+│   ├── forge/              # Neural Forge: real MLP, introspection, interventions, checkpoints, time machine
 │   ├── tests/              # pytest suite for forge
 │   ├── models.py           # PyTorch model definitions (7 architectures)
 │   ├── compute.py          # Illustrative graphs, propagation steps, landscapes
@@ -154,7 +182,7 @@ Neural-Visualizer/
 │   ├── src/
 │   │   ├── forge/          # Forge types, API client, store, pure helpers (+ vitest tests)
 │   │   ├── components/
-│   │   │   ├── Forge/           # Neural Microscope & What-if UI
+│   │   │   ├── Forge/           # Neural Microscope, What-if & Training Time Machine UI
 │   │   │   ├── Layout/          # Header with theme switcher & Tour button
 │   │   │   ├── Sidebar/         # NetworkConfig, TrainingConfig panels
 │   │   │   ├── Visualizations/  # 15 visualization components
@@ -246,8 +274,8 @@ Then open your browser at **http://localhost:5173**
 ### Running the tests
 
 ```bash
-cd backend && python -m pytest -q        # numerical correctness of the microscope, interventions, training, API
-cd frontend && npm test                  # store and helper unit tests (vitest)
+cd backend && python -m pytest -q        # numerical correctness of the microscope, interventions, training, time machine, API
+cd frontend && npm test                  # store, playback and helper unit tests (vitest)
 cd frontend && npm run typecheck && npm run lint && npm run build
 ```
 
@@ -257,6 +285,7 @@ cd frontend && npm run typecheck && npm run lint && npm run build
 
 1. **Follow the Tour** — a 20-step guided tutorial launches automatically on first visit; click **Tour** in the header to reopen it at any time
 2. **Use the Microscope** — choose **ANN**, click **Build Network**, then **Train Model**; open *Forge → Microscope*, pick a probe point, click neurons/layers, and try *Disable* or edit a weight to compare predictions before/after
+3. **Travel through training** — open *Forge → Time Machine*, press **Play** or drag along the timeline, click a neuron to follow it through time, and use **Compare A ↔ B** to see what changed between two epochs
 3. **Select a model type** (ANN, CNN, RNN, LSTM, GAN, Transformer, Diffuser) and configure input nodes, output nodes, hidden layers, neurons, and activations in the sidebar
 4. **Click "Build Network"** to generate the architecture graph
 5. **Explore tabs** — switch between Architecture, Forward/Backward Propagation, Weights, Activations, Pruning, and more
@@ -288,6 +317,10 @@ cd frontend && npm run typecheck && npm run lint && npm run build
 | `POST` | `/api/forge/sessions/{id}/graph` | Real graph for a probe / interventions / checkpoint |
 | `POST` | `/api/forge/sessions/{id}/inspect` | Neuron / layer / connection inspection |
 | `POST` | `/api/forge/sessions/{id}/compare` | Before vs after interventions |
+| `GET` | `/api/forge/sessions/{id}/timeline` | Training log, per-checkpoint health, runs, events |
+| `POST` | `/api/forge/sessions/{id}/frame` | One stored checkpoint: metrics, predictions, decision regions |
+| `POST` | `/api/forge/sessions/{id}/component-history` | A neuron / layer / connection across all checkpoints |
+| `POST` | `/api/forge/sessions/{id}/epoch-compare` | Real differences between two checkpoints |
 
 Legacy endpoints `build-network`, `forward-propagation`, `backward-propagation` and `simulate-training` produce **illustrative / synthetic** data and are kept for the non-ANN diagrams. Forge request/response schemas are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and at `http://localhost:8000/docs`.
 
