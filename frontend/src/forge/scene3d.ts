@@ -131,5 +131,5 @@ export function strongestInto(edges: Edge3D[], layer: number, n: number): number
 export function fitDistance(radius: number, fovDeg: number, aspect = 1.6): number {
   const vf = (fovDeg * Math.PI) / 360;
   const hf = Math.atan(Math.tan(vf) * aspect);
-  return (radius / Math.sin(Math.min(vf, hf))) * 0.92;
+  return (radius / Math.sin(Math.min(vf, hf))) * 0.8;
 }

@@ -93,12 +93,16 @@ internal unless a model computed it.**
 * The Microscope's Weights select became a compact timeline; LIVE / HISTORICAL / WHAT-IF labels everywhere.
 * Not done (candidates): float16 delta storage, more than two epochs compared at once, history export.
 
-### M3 — Real backprop playback and 3D upgrade (next)
-* Combine with the Time Machine: replay one probe's forward and backward pass *at any checkpoint*, step by step.
-* Drive the Forward/Backprop tabs and Cinema Mode from the real trace (values per step, not just
-  highlighting); colour 3D nodes/edges by real activation and gradient magnitude; animate signal intensity
-  proportional to `w·a`.
-* Instanced meshes for >2k edges in 3D; layer-focus camera moves.
+### M3 — Product redesign, Pass Explorer, real 3D, guided demos (done)
+* Three-column workspace (Experiment · workspace · Inspector), workspace modes, Dark/Paper design tokens, keyboard
+  access and focus rings, reduced-motion support.
+* Forward / Backward Pass Explorer on a backend computation trace, at any checkpoint and with what-if; epoch comparison;
+  SGD preview.
+* Real 3D engine (instancing, one-draw-call edges, disclosed top-k filtering, pass sync, camera rig).
+* First-run welcome, one-click demos, 10-step presentation journey on the real app.
+* Session loss landscape; Playwright smoke tests; GitHub Actions CI; lint clean; code-split bundle.
+* Not done: Cinema Mode and the legacy Forward/Backprop step animations still use the generic step lists
+  (kept under Analysis → Diagrams; the Pass Explorer is the real replacement).
 
 ### M4 — Model families beyond MLP
 * Introduce an adapter protocol (`structure / run_probe / inspect / compare`) extracted from
@@ -106,16 +110,49 @@ internal unless a model computed it.**
 * Small CNN on 8×8 digits (feature maps, kernels, channel ablation).
 * Replace the illustrative CNN/RNN/… graphs with real ones, or keep them clearly labelled.
 
-### M5 — Transformer Lab
-* A tiny character-level Transformer (≈2 layers, 2–4 heads, d≈64) trained locally on a small corpus.
-* Tokens → embeddings → per-head attention matrices → MLP blocks → logits → next-token probabilities, with
-  head ablation through the same intervention overlay pattern.
+### M5 — Transformer Lab (first version done)
+* Done: a tiny *word-level* Transformer (2 layers, 2 heads, d=32) trained locally on a template corpus; tokens →
+  embeddings → per-head Q/K/V, scores, causal mask, attention → residual/MLP → logits → next-token probabilities;
+  head ablation.
+* Next: neuron-level MLP inspection and 3D view of the Transformer, per-head attribution of the logit change,
+  a larger character-level corpus, training controls in the UI.
 
 ### Cross-cutting
 * Persist sessions (optional) and allow multiple uvicorn workers (currently in-process LRU, single worker).
 * Make the remaining legacy endpoints honest or remove them (`simulate-training`, random backprop
-  gradients for illustrative graphs).
-* Fix the 16 remaining pre-existing ESLint errors in untouched files.
-* E2E browser tests (Playwright) for the microscope and time-machine flows (M2 was verified manually in a real
-  browser with scripted Playwright runs, which are not yet part of the repository's test suite).
-* The `NetworkGraph` layer headers overlap when the graph pane is narrow (pre-existing component).
+  gradients for illustrative graphs) — they are now labelled SYNTHETIC / ILLUSTRATIVE in the UI.
+* ~~Fix the pre-existing ESLint errors~~ (done in M3).
+* ~~E2E browser tests~~ (done in M3: `frontend/e2e`, run in CI).
+* Experiment export / import (versioned JSON, schema-validated, no pickle) — not started.
+* The `NetworkGraph` layer headers can still crowd when the graph pane is very narrow with 5 layers.
+
+
+## 7. View-by-view audit (M3)
+
+Every view was re-checked against the rule *"a number is shown as a model internal only if a model computed it"*.
+Classes: **REAL** (computed by the session model, or by a real TF.js / Transformer Lab model), **ILLUSTRATIVE**
+(a diagram with placeholder values, not computed from the user's model), **SYNTHETIC** (a formula made to look like
+model output), **REDUNDANT** (superseded by a real view), **TOOL** (configuration-derived).
+
+| View | Class | Notes / action |
+|---|---|---|
+| Network (signal graph) | REAL | Forge graph of the session model; probe, checkpoint and what-if aware. |
+| Neural Microscope, What-if | REAL | M1; unchanged numerics, moved to the Inspector column. |
+| Time Machine | REAL | M2; unchanged numerics, layout adapted to the new shell. |
+| Forward / Backward Explorer | REAL | New; backend trace, tested identities. |
+| 3D (Forge) | REAL | New; trace-driven, filtering disclosed. Legacy `Network3DView` kept for illustrative diagrams only. |
+| Transformer Lab | REAL (toy model) | New; explicitly not a production LLM. |
+| Training curves | REAL for ANN / SYNTHETIC otherwise | The badge follows `trainingResult.source`. |
+| Decision boundary (Analysis) | REAL for ANN after training / ILLUSTRATIVE otherwise | Legacy endpoint uses an untrained model for non-ANN; labelled. Time Machine has the richer real view. |
+| Loss landscape | REAL for ANN (migrated) / ILLUSTRATIVE otherwise | ANN now uses `forge/landscape.py` on the session weights; the legacy random-init version (with a random-number fallback) is only used for illustrative model types and labelled. |
+| Weights, Activations, Pruning | REAL for ANN / ILLUSTRATIVE otherwise | Consume the Forge graph via the graph listener. Pruning is a view filter, labelled. |
+| Architecture / Forward / Backprop step animations | REAL values for ANN, ILLUSTRATIVE otherwise; REDUNDANT for ANN | Kept under Analysis → Diagrams for all model types; the Pass Explorer is the real replacement. |
+| Attention pattern | SYNTHETIC | Kept as a labelled legacy diagram; points to the Transformer Lab for real attention. |
+| Live Train, LR sweep, Custom activation | REAL (separate TF.js model) | Labelled as a separate in-browser model. The custom-activation tool always uses its own small dataset (the dataset selector never affected it; now documented in code). |
+| Architecture comparison | TOOL | Counts derived from configurations. |
+| Code export (PyTorch / Keras / template) | TOOL | Generated from the configuration. |
+| Cinema Mode | ILLUSTRATIVE narration over step highlighting | Kept (Analysis → Forward step animation → Cinema walkthrough); superseded by Presentation mode. |
+| Guided tour (20 steps) | LEGACY / BROKEN after the redesign | Removed: its targets no longer exist. Replaced by the Welcome demos and Presentation mode. |
+| Cyberpunk / Matrix themes | Removed | Did not meet the readability/contrast goals; stored values fall back to Dark. |
+| CNN / RNN / LSTM / GAN / Transformer / Diffuser graphs | ILLUSTRATIVE | Selectable; every Forge instrument refuses to inspect them and says why. |
+| Custom CSV datasets | REAL for ANN | Used by the session model (≤ 16 features, ≤ 2 000 rows, labels 0/1). |

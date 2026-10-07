@@ -17,22 +17,32 @@ are labelled `ILLUSTRATIVE VALUES`.
 
 ```
 ┌────────────────────────── frontend ──────────────────────────┐
-│ components/Forge/*        Microscope UI (React, no ML logic)  │
-│        │ reads                                                 │
+│ components/Shell/*        top bar, Experiment panel, Inspector  │
+│ components/Workspaces/*   Network, Analysis, empty states       │
+│ components/Forge/*        Microscope, Time Machine, Explorer,   │
+│                           ThreeD (React, no ML logic)           │
+│ components/Transformer/*  Transformer Lab UI                    │
+│ app/{workspace,experiment,demos}.ts  UI mode, build/train       │
+│                           actions, demos & presentation journey │
 │ forge/timeMachine.ts      playhead, playback, frame/history/A-B │
 │        │ syncs checkpoint  caches (drives forge/store below)     │
+│ forge/explorer.ts         Pass Explorer step / playback / compare│
 │ forge/store.ts            experiment state: probe, interventions,
 │        │                  checkpoint, selection → refetch       │
+│        │                  graph + compare + trace + inspection  │
+│ forge/transformerLab.ts   Transformer Lab input / ablation      │
 │ forge/api.ts              HTTP client                          │
 │ forge/types.ts            wire contract (mirror of schema.py)  │
-│ forge/{interventions,selection,format,explain,activations}.ts │
-│                           pure helpers (unit-tested)           │
+│ forge/{passExplorer,scene3d,interventions,selection,format,    │
+│        explain,activations}.ts  pure helpers (unit-tested)     │
 └────────────────────────────┬──────────────────────────────────┘
                              │ JSON over /api/forge/*
 ┌────────────────────────────┴──────── backend/forge ───────────┐
 │ api.py           FastAPI router, validation, session lookup    │
 │ introspect.py    MLPIntrospector: session → schema payloads    │
 │ timemachine.py   read-only history: timeline, frames, A/B diff │
+│ landscape.py     loss landscape around live / stored params    │
+│ transformer.py   Transformer Lab model, training, trace        │
 │ schema.py        pydantic wire contract                        │
 │ session.py       ModelSession (params, data, training, history)│
 │                  + SessionRegistry (in-process LRU)            │
@@ -202,6 +212,10 @@ values for ANN without modification.
 | POST | `/sessions/{id}/frame` | `{checkpoint_epoch?, probe}` | `Frame` (metrics, predictions, confidence, P(class 1) grid, `previous`) |
 | POST | `/sessions/{id}/component-history` | `{ref, probe}` | `ComponentHistory` (`epochs`, `series[]`) |
 | POST | `/sessions/{id}/epoch-compare` | `{epoch_a, epoch_b?, probe, ref?}` | `EpochComparison` (deltas, grids, `ParamChange[]`, component rows) |
+| POST | `/sessions/{id}/trace` | `ExperimentRequest + learning_rate?` | `ComputationTrace` (every forward tensor and gradient of the probe, optional SGD preview) |
+| POST | `/sessions/{id}/loss-landscape` | `{checkpoint_epoch?}` | `LossLandscape` (25×25 real loss slice) |
+| GET | `/transformer` | — | `TransformerInfo` (model card; trains the lab model on first call) |
+| POST | `/transformer/trace` | `{text, ablate_heads[], top_k}` | `TransformerTrace` |
 
 Time-machine endpoints accept only stored checkpoint epochs (`422` otherwise) and never take interventions.
 
@@ -239,13 +253,104 @@ owns it, and an introspector producing the same `schema` payload kinds (add new 
 `feature_map` where needed). Extract a shared adapter protocol from `MLPIntrospector` at that point and
 register the model type in `FORGE_MODELS` (`App.tsx`) and `/capabilities`.
 
+## 11. Application shell and shared state
+
+The UI is a three-column instrument: **Experiment** panel (left), a **workspace** (centre: Network, Time Machine,
+Forward / Backward, 3D, Transformer Lab, Analysis) and the **Inspector** (right: probe input, prediction / what-if,
+Neural Microscope). The side panels are collapsible; Learn/Lab and the theme are global.
+
+There is exactly one experiment state: `forge/store.ts` (session, probe, what-if list, checkpoint, selection). Every
+instrument reads it, so a selection or an edit made anywhere appears everywhere:
+
+```
+Network click ─┐                       ┌─► Network graph (2D signal view)
+3D click ──────┤                       ├─► Inspector / Microscope
+Explorer cell ─┼─► useForgeStore ──────┼─► Pass Explorer (trace)
+Time Machine ──┤   (probe, what-if,    ├─► 3D view (trace)
+What-if panel ─┘    checkpoint, sel.)  └─► legacy Analysis views (graph listener)
+```
+
+`app/experiment.ts` holds the Build / Train actions (moved out of `App.tsx`) so that the Experiment panel, the demos and
+the presentation journey run identical code. `app/workspace.ts` holds only UI state (mode, panels, welcome).
+
+## 12. Forward / Backward Pass Explorer
+
+**Backend.** `MLPIntrospector.trace()` reuses the instrumented autograd pass of the Microscope (`run_probe`) and returns,
+per dense layer: `W`, `b`, the incoming vector `a_prev`, `z`, `a` (after ablation masks), `dL/da`, `da/dz` (obtained by
+differentiating the activation function itself, times the ablation mask), `dL/dz`, `dL/dW`, `dL/db` and
+`dL/da_prev`; plus logits, probabilities, prediction, target, loss and the input saliency. An optional `learning_rate`
+adds an **SGD preview**: one plain gradient step on a *copy* of the effective weights and the probe's loss before and
+after (it is labelled as different from the real Adam/mini-batch training).
+`tests/test_trace.py` checks every array against an independent autograd pass and the identities
+`z = W·a + b`, `dL/dlogits = p − onehot(y)`, `dL/dW = δ ⊗ a_prev`, `dL/db = δ`, `dL/da_prev = Wᵀ·δ`,
+`δ = dL/da ⊙ f′(z)`, with interventions and historical checkpoints, and that no stored tensor changes.
+
+**Frontend.** The trace is fetched by the experiment store together with the graph and comparison (same request, same
+sequence check), so it always matches the probe, checkpoint and what-if list on screen. `forge/passExplorer.ts`
+decides which numbers each step shows (step list, per-neuron `Σ w·a` terms, `Wᵀ·δ` terms, softmax parts, focus neuron);
+`forge/__tests__/passExplorer.test.ts` verifies every displayed identity on a **real backend trace** stored as a fixture.
+`forge/explorer.ts` keeps the current step *by id*, so changing epoch keeps you on the same step while the numbers change;
+*compare with epoch* fetches a second trace at another stored checkpoint (cancelled/sequence-checked, refetched when the
+probe or what-if list changes, dropped when the model is replaced).
+
+## 13. 3D engine
+
+`components/Forge/ThreeD` renders the trace with React Three Fiber:
+
+* neurons: one `InstancedMesh` (per-instance matrix and colour); connections: one `LineSegments` geometry with vertex
+  colours (one draw call); emphasised connections (selection, what-if edits) use drei `Segments` (screen-space width);
+  forward/backward pulses are a second small `InstancedMesh` animated in `useFrame` (no React re-render per frame);
+* geometry is rebuilt only when the trace, colour mode, edge limit or selection change (memoised), and disposed;
+* layout (`forge/scene3d.ts`): layers along x, neurons on a near-square y–z grid (a column for ≤ 8 neurons);
+* colours: signed values → neutral→green/red by |value| / layer max; colour modes Signal (`a`, `w·a`), Weights (`b`, `w`),
+  Gradients (`δ`, `dL/dw`);
+* edge filtering: `selectEdges` keeps the strongest *k* by |value| plus everything touching the selection and every
+  edited weight, and reports the total; the overlay always discloses it;
+* pass sync: the 3D view reads the Pass Explorer store; layers not yet reached are dimmed and pulses follow the 36
+  strongest real `w·a` (forward) or `w·δ` (backward) terms into the active layer;
+* camera: drei `OrbitControls` (orbit, pan, zoom to cursor) plus an eased rig for Fit / Front / Reset / focus layer /
+  focus selection (instant under `prefers-reduced-motion`).
+
+## 14. Transformer Lab
+
+`forge/transformer.py` is self-contained: a deterministic template corpus (≈ 1 200 sentences, 38-word vocabulary), a
+word-level tokenizer with `<bos>`/`<unk>`, and a **functional** pre-LN decoder (2 layers × 2 heads, d_model 32,
+d_head 16, GELU MLP 32→128→32, learned positions, context 24, 28 518 parameters). It trains once per backend process
+(Adam, 500 steps, CPU, ~5–10 s) behind a lock, then serves traces: token / position embeddings, per head
+`Q, K, V`, `QKᵀ/√d_head` (before the mask), softmax attention with the causal mask, head outputs, attention and MLP
+outputs, residual stream before/after each sub-block (with norms), final LayerNorm, last-position logits and top-k
+next tokens, the argmax prediction at every position. **Head ablation** zeroes a head's output in the same forward pass
+and also returns the baseline distribution. `tests/test_transformer.py` compares the trace with an independent
+re-implementation (`F.layer_norm`, explicit per-head slicing), and checks the causal mask, softmax rows, residual
+identities, ablation, truncation and that training lowers the loss.
+
+The model is labelled everywhere as a toy model; it does not represent GPT, ChatGPT, Claude or any production LLM.
+
+## 15. Loss landscape of the session model
+
+`forge/landscape.py` evaluates `L(θ + α·d₁ + β·d₂)` on a 25×25 grid (α, β ∈ [−1, 1]) for the live weights or a stored
+checkpoint; `d₁, d₂` are seeded Gaussian directions with per-neuron (row) filter normalisation and zero bias directions
+(Li et al., 2018). Every value is a full-dataset cross-entropy; the centre equals the model's real loss (tested). It
+replaces, for ANN, the legacy landscape of a random-init model (which also fell back to random numbers on errors).
+
+## 16. Demos and presentation mode
+
+`app/demos.ts` defines five one-click demos and a 10-step journey. Each step calls the real actions (build, train,
+Time Machine `first/goTo/play`, `setProbe`, `select`, `addIntervention`, explorer `setDir/first/play`, workspace mode)
+and its narration is a function evaluated on the resulting state. Two choices are *measured*, not assumed: the probe is
+the sample with the lowest predicted-class probability in the real frame, and the neuron to "break" is found by
+running one real what-if comparison per hidden neuron and keeping the largest accuracy drop.
+
 ## Tests
 
 ```bash
-cd backend && pip install -r requirements-dev.txt && python -m pytest -q   # 61 tests
-cd frontend && npm test                                                    # 59 tests (vitest)
-cd frontend && npm run typecheck && npm run build
+cd backend && python -m pytest -q        # 74 tests
+cd frontend && npm test                  # 84 tests (vitest, src/ only)
+cd frontend && npm run test:e2e          # 9 Playwright smoke tests (start backend + Vite)
+cd frontend && npm run lint && npm run typecheck && npm run build
 ```
+
+See [TESTING.md](TESTING.md) for what each suite covers. The M2 notes below still apply.
 
 `tests/test_timemachine.py` checks the retention policy, frozen snapshots, the logged gradient/update norms
 against independent autograd, frames / histories / A-B comparisons against independent forward passes, that

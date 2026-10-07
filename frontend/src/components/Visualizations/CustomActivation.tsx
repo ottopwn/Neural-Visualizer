@@ -3,6 +3,8 @@ import * as tf from '@tensorflow/tfjs';
 import { Trash2, Play, Square, RotateCcw } from 'lucide-react';
 import { useNetworkStore } from '../../store/networkStore';
 
+// The custom-activation playground always uses this small fixed two-class dataset
+// (it never followed the dataset selector); it trains a separate TF.js model.
 function makeDataset(): [number[][], number[]] {
   const N = 150; const X: number[][] = []; const y: number[] = [];
   for (let i = 0; i < N; i++) {
