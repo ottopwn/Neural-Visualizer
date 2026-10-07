@@ -1,11 +1,8 @@
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
 import { useWorkspace, type WorkspaceMode } from './app/workspace';
-import { CinemaMode } from './components/CinemaMode';
 import { PassExplorer } from './components/Forge/Explorer/PassExplorer';
-import { Forge3DView } from './components/Forge/ThreeD/Forge3DView';
-import { TransformerLab } from './components/Transformer/TransformerLab';
 import { TimeMachineView } from './components/Forge/TimeMachine/TimeMachineView';
 import { ExperimentPanel } from './components/Shell/ExperimentPanel';
 import { InspectorPanel } from './components/Shell/InspectorPanel';
@@ -13,10 +10,16 @@ import { PresentationBar } from './components/Shell/PresentationBar';
 import { GuideToast, Welcome, WELCOME_KEY } from './components/Shell/Welcome';
 import { usePresentation } from './app/demos';
 import { TopBar } from './components/Shell/TopBar';
-import { AnalysisWorkspace } from './components/Workspaces/AnalysisWorkspace';
 import { NetworkWorkspace } from './components/Workspaces/NetworkWorkspace';
 import { onForgeGraph } from './forge/store';
 import { useNetworkStore } from './store/networkStore';
+
+// Heavy, secondary workspaces are code-split: Three.js, TensorFlow.js, Plotly
+// and the legacy tools load only when first opened.
+const Forge3DView = lazy(() => import('./components/Forge/ThreeD/Forge3DView').then((m) => ({ default: m.Forge3DView })));
+const TransformerLab = lazy(() => import('./components/Transformer/TransformerLab').then((m) => ({ default: m.TransformerLab })));
+const AnalysisWorkspace = lazy(() => import('./components/Workspaces/AnalysisWorkspace').then((m) => ({ default: m.AnalysisWorkspace })));
+const CinemaMode = lazy(() => import('./components/CinemaMode').then((m) => ({ default: m.CinemaMode })));
 
 /** Workspaces that are always available. Others register below when they exist. */
 const AVAILABLE: Set<WorkspaceMode> = new Set(['network', 'timemachine', 'explorer', '3d', 'transformer', 'analysis']);
@@ -97,7 +100,7 @@ export default function App() {
       <PresentationBar />
       <Welcome />
       <GuideToast />
-      {cinemaOpen && <CinemaMode onClose={() => setCinemaOpen(false)} />}
+      {cinemaOpen && <Suspense fallback={null}><CinemaMode onClose={() => setCinemaOpen(false)} /></Suspense>}
     </div>
   );
 }
