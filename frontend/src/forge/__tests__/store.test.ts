@@ -4,6 +4,7 @@ import type { ComponentRef, ExperimentRequest, SessionSummary } from '../types';
 vi.mock('../api', () => ({
   fetchGraph: vi.fn(),
   compare: vi.fn(),
+  fetchTrace: vi.fn(async (_id: string, req: { interventions: unknown[]; checkpoint_epoch: number | null }) => ({ tag: req.interventions.length, epoch: req.checkpoint_epoch })),
   inspect: vi.fn(),
   errorMessage: (e: unknown) => String(e),
 }));
@@ -92,5 +93,24 @@ describe('forge store', () => {
     expect(useForgeStore.getState().inspection).toEqual({ kind: 'connection' });
     await useForgeStore.getState().select(null);
     expect(useForgeStore.getState().inspection).toBeNull();
+  });
+});
+
+describe('forge store · trace', () => {
+  it('fetches the computation trace with the same experiment and drops stale traces', async () => {
+    await useForgeStore.getState().setSession(session);
+    await useForgeStore.getState().setCheckpoint(3);
+    const call = vi.mocked(api.fetchTrace).mock.calls.at(-1)!;
+    expect(call[1].checkpoint_epoch).toBe(3);
+    expect(call[1].learning_rate).toBe(useForgeStore.getState().previewLr);
+    expect(useForgeStore.getState().trace).toMatchObject({ epoch: 3 });
+
+    const slow = deferred<never>();
+    vi.mocked(api.fetchTrace).mockImplementationOnce(() => slow.promise);
+    const first = useForgeStore.getState().setCheckpoint(1);
+    await useForgeStore.getState().setCheckpoint(2);
+    slow.resolve({ epoch: 1 } as never);
+    await first;
+    expect(useForgeStore.getState().trace).toMatchObject({ epoch: 2 });
   });
 });

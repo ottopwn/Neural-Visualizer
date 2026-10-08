@@ -1,6 +1,8 @@
 import axios from 'axios';
+import { tr } from '../i18n';
+import type { TransformerInfo, TransformerTrace } from './transformerTypes';
 import type {
-  ComponentHistory, ComponentRef, Comparison, EpochComparison, ExperimentRequest, ForgeGraph, Frame,
+  ComponentHistory, ComponentRef, ComputationTrace, Comparison, EpochComparison, ExperimentRequest, ForgeGraph, Frame,
   HistoryRow, Inspection, Probe, SessionSummary, Timeline,
 } from './types';
 
@@ -36,6 +38,25 @@ export const fetchGraph = (id: string, req: ExperimentRequest): Promise<ForgeGra
 export const inspect = (id: string, ref: ComponentRef, req: ExperimentRequest): Promise<Inspection> =>
   http.post(`/sessions/${id}/inspect`, { ...req, ref }).then((r) => r.data);
 
+export const fetchTrace = (id: string, req: ExperimentRequest & { learning_rate?: number | null }, signal?: AbortSignal): Promise<ComputationTrace> =>
+  http.post(`/sessions/${id}/trace`, req, { signal }).then((r) => r.data);
+
+export interface SessionLossLandscape {
+  checkpoint_epoch: number;
+  is_latest: boolean;
+  alphas: number[];
+  betas: number[];
+  loss: number[][];
+  center_loss: number;
+  min_loss: number;
+  max_loss: number;
+  seed: number;
+  note: string;
+}
+
+export const fetchLossLandscape = (id: string, checkpointEpoch: number | null, signal?: AbortSignal): Promise<SessionLossLandscape> =>
+  http.post(`/sessions/${id}/loss-landscape`, { checkpoint_epoch: checkpointEpoch }, { signal }).then((r) => r.data);
+
 export const compare = (id: string, req: ExperimentRequest): Promise<Comparison> =>
   http.post(`/sessions/${id}/compare`, req).then((r) => r.data);
 
@@ -56,6 +77,16 @@ export const fetchEpochComparison = (
 ): Promise<EpochComparison> =>
   http.post(`/sessions/${id}/epoch-compare`, body, { signal }).then((r) => r.data);
 
+// ── Transformer Lab (a tiny model trained locally on first use) ─────────────
+
+export const fetchTransformerInfo = (signal?: AbortSignal): Promise<TransformerInfo> =>
+  http.get('/transformer', { signal, timeout: 180000 }).then((r) => r.data);
+
+export const fetchTransformerTrace = (
+  body: { text: string; ablate_heads: [number, number][]; top_k?: number }, signal?: AbortSignal,
+): Promise<TransformerTrace> =>
+  http.post('/transformer/trace', body, { signal, timeout: 180000 }).then((r) => r.data);
+
 /** True for errors caused by cancelling a superseded request. */
 export const isCancel = (err: unknown): boolean => axios.isCancel(err);
 
@@ -64,8 +95,8 @@ export function errorMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
     const detail = err.response?.data?.detail;
     if (typeof detail === 'string') return detail;
-    if (!err.response) return 'Backend unreachable — start FastAPI on :8000';
-    return `Request failed (${err.response.status})`;
+    if (!err.response) return tr().errors.backend;
+    return tr().errors.request(err.response.status);
   }
   return err instanceof Error ? err.message : String(err);
 }

@@ -503,3 +503,66 @@ class EpochComparison(BaseModel):
     total_delta_norm: float
     total_relative_change: float
     component: Optional[ComponentCompare] = None
+
+
+# ── Forward / Backward Pass Explorer ────────────────────────────────────────
+# One probe, every intermediate tensor of the forward pass and every gradient
+# of the backward pass, as computed by PyTorch autograd.  Nothing is derived
+# for display only: the explorer reads these arrays.
+
+
+class TraceRequest(ExperimentRequest):
+    learning_rate: Optional[float] = Field(
+        None, description="If set (0 < lr <= 1), also preview one plain SGD step on this probe")
+
+
+class TraceLayer(BaseModel):
+    layer: int = Field(..., description="Graph layer (1..H+1); params[layer-1]")
+    label: str
+    role: Role
+    activation: str = Field(..., description="Activation function; 'Softmax' for the output layer")
+    input_names: List[str]
+    neuron_names: List[str]
+    weight: List[List[float]] = Field(..., description="W[out][in] (effective: what-if edits applied)")
+    bias: List[float]
+    input: List[float] = Field(..., description="a_{l-1}: the vector entering this layer")
+    z: List[float] = Field(..., description="Pre-activation z = W a_{l-1} + b (logits for the output layer)")
+    a: List[float] = Field(..., description="Output f(z), after ablation masks (probabilities for the output)")
+    ablated: List[int] = Field(default_factory=list)
+    edited_bias: List[int] = Field(default_factory=list)
+    edited_weights: List[List[int]] = Field(default_factory=list, description="[[source, target], ...]")
+    grad_a: Optional[List[float]] = Field(None, description="dL/da (hidden layers only)")
+    local_grad: Optional[List[float]] = Field(
+        None, description="da/dz elementwise (hidden layers; includes the ablation mask)")
+    grad_z: List[float] = Field(..., description="dL/dz; dL/dlogit for the output layer")
+    grad_weight: List[List[float]]
+    grad_bias: List[float]
+    grad_input: List[float] = Field(..., description="dL/da_{l-1} = W^T dL/dz")
+
+
+class SgdPreview(BaseModel):
+    learning_rate: float
+    loss_before: float
+    loss_after: float
+    target_prob_before: float
+    target_prob_after: float
+    predicted_after: int
+    update_norm: float = Field(..., description="||lr * grad|| over all parameters")
+    note: str = ("One plain gradient-descent step on this single probe, applied to a copy of the weights. "
+                 "Real training uses Adam on mini-batches, so its steps differ.")
+
+
+class ComputationTrace(BaseModel):
+    probe: ResolvedProbe
+    provenance: Provenance
+    feature_names: List[str]
+    class_names: List[str]
+    input: List[float]
+    layers: List[TraceLayer]
+    logits: List[float]
+    probabilities: List[float]
+    predicted_class: int
+    target: int
+    loss: float = Field(..., description="cross_entropy(logits, target) = -log p_target")
+    grad_input: List[float] = Field(..., description="dL/dx (input saliency)")
+    sgd_preview: Optional[SgdPreview] = None

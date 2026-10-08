@@ -2,7 +2,7 @@
 // need, the store fetches it (cached, de-duplicated, stale-protected).
 
 import { useEffect, useMemo } from 'react';
-import { useTheme } from '../../../contexts/ThemeContext';
+import { useTheme } from '../../../contexts/theme';
 import { NEUTRAL, type RGB } from '../../../forge/format';
 import { refKey } from '../../../forge/interventions';
 import { useForgeStore } from '../../../forge/store';

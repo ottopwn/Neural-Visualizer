@@ -496,6 +496,89 @@ class MLPIntrospector:
             notes=notes,
         )
 
+    # ── forward / backward pass explorer ─────────────────────────────────
+    def trace(self, req: S.TraceRequest) -> S.ComputationTrace:
+        """Every tensor of one forward + backward pass on the probe.
+
+        The values come straight from the instrumented autograd pass used by
+        the rest of the microscope (``run_probe``); ``local_grad`` (da/dz) is
+        obtained by differentiating the activation function itself, with the
+        ablation mask applied, so ``grad_z == grad_a * local_grad`` holds.
+        """
+        run = self.run_probe(req)
+        trace, spec = run.trace, self.spec
+        sizes = spec.layer_sizes
+        layers: List[S.TraceLayer] = []
+        for layer in range(1, len(sizes)):
+            k = layer - 1
+            p = run.params[k]
+            z = trace.pre[k][0]
+            is_out = layer == spec.output_layer
+            kw = {}
+            if not is_out:
+                zd = z.detach().clone().requires_grad_(True)
+                activation_fn(spec.activations[k])(zd).sum().backward()
+                local = zd.grad
+                mask = run.compiled.neuron_masks[k]
+                if mask is not None:
+                    local = local * mask
+                kw.update(grad_a=_floats(trace.post[k].grad[0]), local_grad=_floats(local))
+            layers.append(S.TraceLayer(
+                layer=layer, label=self.layer_label(layer), role=self.role(layer),
+                activation=spec.activation_of(layer) or "",
+                input_names=[self.neuron_name(layer - 1, j) for j in range(sizes[layer - 1])],
+                neuron_names=[self.neuron_name(layer, i) for i in range(sizes[layer])],
+                weight=_matrix(p.weight), bias=_floats(p.bias),
+                input=_floats(trace.activations_of(layer - 1)[0]),
+                z=_floats(z), a=_floats(trace.post[k][0]),
+                ablated=sorted(i for (lyr, i) in run.compiled.ablated if lyr == layer),
+                edited_bias=sorted(i for (lyr, i) in run.compiled.bias_edits if lyr == layer),
+                edited_weights=sorted([s, t] for (lyr, s, t) in run.compiled.weight_edits if lyr == layer),
+                grad_z=_floats(trace.pre[k].grad[0]),
+                grad_weight=_matrix(p.weight.grad), grad_bias=_floats(p.bias.grad),
+                grad_input=_floats(self._output_grad(run, layer - 1)),
+                **kw,
+            ))
+
+        logits = trace.logits[0]
+        probs = trace.probabilities[0]
+        target = run.probe.target
+        loss = _f(F.cross_entropy(trace.logits, torch.tensor([target])))
+
+        preview = None
+        if req.learning_rate is not None:
+            lr = float(req.learning_rate)
+            if not 0 < lr <= 1:
+                raise IntrospectionError("learning_rate must be in (0, 1]")
+            preview = self._sgd_preview(run, lr, loss, _f(probs[target]))
+
+        return S.ComputationTrace(
+            probe=run.probe, provenance=run.provenance,
+            feature_names=self.feature_names, class_names=self.class_names,
+            input=_floats(run.x[0]), layers=layers,
+            logits=_floats(logits), probabilities=_floats(probs),
+            predicted_class=int(logits.argmax()), target=target, loss=loss,
+            grad_input=_floats(run.x.grad[0]), sgd_preview=preview,
+        )
+
+    def _sgd_preview(self, run: ProbeRun, lr: float, loss_before: float, p_before: float) -> S.SgdPreview:
+        target = run.probe.target
+        with torch.no_grad():
+            stepped = clone_params(run.params)
+            sq = 0.0
+            for new, old in zip(stepped, run.params):
+                new.weight -= lr * old.weight.grad
+                new.bias -= lr * old.bias.grad
+                sq += float((lr * old.weight.grad).pow(2).sum() + (lr * old.bias.grad).pow(2).sum())
+            x = run.x.detach()
+            after = forward(self.spec, stepped, x, run.compiled.neuron_masks)
+            loss_after = _f(F.cross_entropy(after.logits, torch.tensor([target])))
+        return S.SgdPreview(
+            learning_rate=lr, loss_before=loss_before, loss_after=loss_after,
+            target_prob_before=p_before, target_prob_after=_f(after.probabilities[0, target]),
+            predicted_after=int(after.logits[0].argmax()), update_norm=sq ** 0.5,
+        )
+
     # ── before / after ───────────────────────────────────────────────────
     def _summary(self, compiled: CompiledInterventions, x: torch.Tensor) -> Tuple[S.PredictionSummary, torch.Tensor]:
         with torch.no_grad():

@@ -13,9 +13,11 @@ from datasets import generate_dataset
 from . import schema as S
 from .checkpoints import DEFAULT_CAPACITY
 from .introspect import IntrospectionError, MLPIntrospector
+from .landscape import LossLandscape, loss_landscape
 from .mlp import SUPPORTED_ACTIVATIONS, MLPSpec
 from .session import ModelSession, SessionRegistry, TrainingSettings, create_session
 from .timemachine import TimeMachine
+from . import transformer as T
 
 router = APIRouter(prefix="/api/forge", tags=["forge"])
 registry = SessionRegistry(max_sessions=8)
@@ -85,6 +87,8 @@ def capabilities():
         "supported_model_types": ["ANN"],
         "activations": list(SUPPORTED_ACTIVATIONS),
         "interventions": ["ablate_neuron", "set_weight", "set_bias"],
+        "pass_explorer": {"trace": True, "sgd_preview": True},
+        "transformer_lab": {"layers": 2, "heads": 2, "d_model": 32, "trained_locally": True},
         "time_machine": {"checkpoint_capacity": DEFAULT_CAPACITY, "interventions_in_history": False},
         "limits": {"max_neurons": MAX_NEURONS, "max_layers": MAX_LAYERS},
         "unsupported_note": (
@@ -166,9 +170,30 @@ def inspect(session_id: str, req: S.InspectRequest):
     return _with_session(session_id, lambda i: i.inspect(req))
 
 
+@router.post("/sessions/{session_id}/trace", response_model=S.ComputationTrace)
+def trace(session_id: str, req: S.TraceRequest):
+    """Every forward tensor and backward gradient of one probe (Pass Explorer, 3D view)."""
+    return _with_session(session_id, lambda i: i.trace(req))
+
+
 @router.post("/sessions/{session_id}/compare", response_model=S.Comparison)
 def compare(session_id: str, req: S.ExperimentRequest):
     return _with_session(session_id, lambda i: i.compare(req))
+
+
+class LandscapeRequest(BaseModel):
+    checkpoint_epoch: Optional[int] = None
+
+
+@router.post("/sessions/{session_id}/loss-landscape", response_model=LossLandscape)
+def landscape(session_id: str, req: LandscapeRequest):
+    """A real 2-D loss slice around the live weights or a stored checkpoint."""
+    session = _get(session_id)
+    with session.lock:
+        try:
+            return loss_landscape(session, req.checkpoint_epoch)
+        except KeyError as exc:
+            raise _bad(exc)
 
 
 # ── Training Time Machine ───────────────────────────────────────────────────
@@ -205,3 +230,23 @@ def component_history(session_id: str, req: S.ComponentHistoryRequest):
 def epoch_compare(session_id: str, req: S.EpochCompareRequest):
     """Real differences between two stored checkpoints (A -> B)."""
     return _with_time_machine(session_id, lambda tm: tm.compare(req))
+
+
+# ── Transformer Lab ─────────────────────────────────────────────────────────
+# A tiny Transformer trained locally on first use (see forge/transformer.py).
+
+@router.get("/transformer", response_model=T.TransformerInfo)
+def transformer_info():
+    """Model card of the lab Transformer; trains it on first call (a few seconds, CPU)."""
+    return T.info(T.get_model())
+
+
+@router.post("/transformer/trace", response_model=T.TransformerTrace)
+def transformer_trace(req: T.TraceRequest):
+    """Every tensor of one forward pass for the given text (optionally with heads ablated)."""
+    if not 1 <= req.top_k <= 50:
+        raise _bad(ValueError("top_k must be in 1..50"))
+    try:
+        return T.trace(T.get_model(), req)
+    except ValueError as exc:
+        raise _bad(exc)

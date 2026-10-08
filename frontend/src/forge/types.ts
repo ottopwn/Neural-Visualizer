@@ -385,3 +385,57 @@ export interface EpochComparison {
   total_relative_change: number;
   component: ComponentCompare | null;
 }
+
+// ── Forward / Backward Pass Explorer (mirror of ComputationTrace) ────────────
+// Every tensor of one forward pass and every gradient of its backward pass,
+// computed by PyTorch autograd on the probe (checkpoint + what-if applied).
+
+export interface TraceLayer {
+  layer: number;
+  label: string;
+  role: Role;
+  activation: string; // 'Softmax' for the output layer
+  input_names: string[];
+  neuron_names: string[];
+  weight: number[][]; // [out][in]
+  bias: number[];
+  input: number[]; // a_{l-1}
+  z: number[];
+  a: number[];
+  ablated: number[];
+  edited_bias: number[];
+  edited_weights: [number, number][]; // [source, target]
+  grad_a: number[] | null; // hidden only
+  local_grad: number[] | null; // da/dz, hidden only (ablation mask included)
+  grad_z: number[];
+  grad_weight: number[][];
+  grad_bias: number[];
+  grad_input: number[]; // dL/da_{l-1}
+}
+
+export interface SgdPreview {
+  learning_rate: number;
+  loss_before: number;
+  loss_after: number;
+  target_prob_before: number;
+  target_prob_after: number;
+  predicted_after: number;
+  update_norm: number;
+  note: string;
+}
+
+export interface ComputationTrace {
+  probe: ResolvedProbe;
+  provenance: Provenance;
+  feature_names: string[];
+  class_names: string[];
+  input: number[];
+  layers: TraceLayer[];
+  logits: number[];
+  probabilities: number[];
+  predicted_class: number;
+  target: number;
+  loss: number;
+  grad_input: number[];
+  sgd_preview: SgdPreview | null;
+}

@@ -48,11 +48,11 @@ export function NeuronPanel({ n, structure }: { n: NeuronInspection; structure: 
           <div className="mt-2 pt-2 border-t space-y-0.5" style={{ borderColor: 'var(--border)' }}>
             <KV k="Σ contributions" v={fmtSigned(n.contributions.reduce((a, b) => a + b, 0), 4)} />
             <KV k={n.bias_edit ? 'bias (edited)' : 'bias b'} v={fmtSigned(n.bias, 4)} color={n.bias_edit ? '#f59e0b' : undefined} />
-            <KV k="pre-activation z" v={fmt(n.pre_activation, 4)} color="#93c5fd" />
+            <KV k="pre-activation z" v={fmt(n.pre_activation, 4)} color="var(--text-info)" />
             <KV
               k={n.role === 'output' ? 'softmax probability' : `${n.activation_fn}(z)`}
               v={n.role === 'output' ? pct(n.value, 2) : fmt(n.value, 4)}
-              color="#fde047"
+              color="var(--select)"
             />
           </div>
           <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-faint)' }}>Click a bar to inspect that connection.</p>
@@ -63,7 +63,7 @@ export function NeuronPanel({ n, structure }: { n: NeuronInspection; structure: 
         <Section title="Activation function" hint={n.activation_fn}>
           <ActivationCurve fn={n.activation_fn} z={n.pre_activation} a={n.value} natural={n.natural_value} />
           {n.ablated && (
-            <p className="text-[11px] mt-1" style={{ color: '#fca5a5' }}>
+            <p className="text-[11px] mt-1" style={{ color: 'var(--text-neg)' }}>
               Disabled: the curve gives {fmt(n.natural_value, 3)}, but 0 is sent downstream.
             </p>
           )}
@@ -72,7 +72,7 @@ export function NeuronPanel({ n, structure }: { n: NeuronInspection; structure: 
 
       {n.role === 'input' && (
         <Section title="Value">
-          <KV k={`${n.name} on this probe`} v={fmt(n.value, 4)} color="#fde047" />
+          <KV k={`${n.name} on this probe`} v={fmt(n.value, 4)} color="var(--select)" />
         </Section>
       )}
 
@@ -107,7 +107,7 @@ export function NeuronPanel({ n, structure }: { n: NeuronInspection; structure: 
           <KV k="std" v={fmt(n.dataset_stats.std)} />
           <KV k="min" v={fmt(n.dataset_stats.min)} />
           <KV k="max" v={fmt(n.dataset_stats.max)} />
-          {n.role === 'hidden' && <KV k="active" v={pct(1 - n.inactive_fraction, 0)} color={n.inactive_fraction > 0.99 ? '#fca5a5' : undefined} />}
+          {n.role === 'hidden' && <KV k="active" v={pct(1 - n.inactive_fraction, 0)} color={n.inactive_fraction > 0.99 ? 'var(--text-neg)' : undefined} />}
         </div>
       </Section>
 
@@ -149,10 +149,10 @@ export function NeuronPanel({ n, structure }: { n: NeuronInspection; structure: 
       {lab && n.outgoing_weights && n.outgoing_names && (
         <Section title="Outgoing weights" hint={`to ${n.outgoing_weights.length} neurons`}>
           {rankByMagnitude(n.outgoing_weights).slice(0, 6).map((j) => (
-            <button key={j} type="button" className="w-full hover:bg-white/5 rounded px-1"
+            <button key={j} type="button" className="w-full hover:bg-[var(--bg-hover)] rounded px-1"
               onClick={() => select({ kind: 'connection', layer: n.layer + 1, source: n.index, target: j })}>
               <KV k={`→ ${n.outgoing_names![j]}`} v={fmtSigned(n.outgoing_weights![j], 4)}
-                color={n.outgoing_weights![j] >= 0 ? '#6ee7b7' : '#fca5a5'} />
+                color={n.outgoing_weights![j] >= 0 ? 'var(--text-pos)' : 'var(--text-neg)'} />
             </button>
           ))}
         </Section>
@@ -174,8 +174,8 @@ export function NeuronPanel({ n, structure }: { n: NeuronInspection; structure: 
                 onClick={() => setInterventions(ivs.toggleAblation(interventions, n.layer, n.index))}
                 className="w-full flex items-center justify-center gap-1.5 text-xs py-1.5 rounded-lg border transition-colors"
                 style={n.ablated
-                  ? { borderColor: '#10b981', color: '#6ee7b7', background: 'rgba(16,185,129,0.08)' }
-                  : { borderColor: 'rgba(239,68,68,0.5)', color: '#fca5a5', background: 'rgba(239,68,68,0.08)' }}
+                  ? { borderColor: '#10b981', color: 'var(--text-pos)', background: 'rgba(16,185,129,0.08)' }
+                  : { borderColor: 'rgba(239,68,68,0.5)', color: 'var(--text-neg)', background: 'rgba(239,68,68,0.08)' }}
               >
                 {n.ablated ? <><RotateCcw size={12} /> Re-enable {n.name}</> : <><Ban size={12} /> Disable {n.name}</>}
               </button>

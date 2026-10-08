@@ -11,7 +11,7 @@ import { create } from 'zustand';
 import * as api from './api';
 import * as iv from './interventions';
 import type {
-  Comparison, ComponentRef, ExperienceMode, ExperimentRequest, ForgeGraph, Inspection,
+  Comparison, ComponentRef, ComputationTrace, ExperienceMode, ExperimentRequest, ForgeGraph, Inspection,
   Intervention, Probe, SessionSummary,
 } from './types';
 
@@ -25,6 +25,10 @@ export interface ForgeState {
 
   graph: ForgeGraph | null;
   comparison: Comparison | null;
+  /** Full forward/backward trace of the probe (Pass Explorer, 3D view). */
+  trace: ComputationTrace | null;
+  /** Learning rate used for the trace's one-step SGD preview. */
+  previewLr: number;
   inspection: Inspection | null;
   loading: boolean;
   inspecting: boolean;
@@ -36,6 +40,7 @@ export interface ForgeState {
   setCheckpoint: (epoch: number | null) => Promise<void>;
   select: (ref: ComponentRef | null) => Promise<void>;
   setMode: (m: ExperienceMode) => void;
+  setPreviewLr: (lr: number) => Promise<void>;
   setInterventions: (ivs: Intervention[]) => Promise<void>;
   addIntervention: (i: Intervention) => Promise<void>;
   undo: () => Promise<void>;
@@ -81,19 +86,20 @@ export const useForgeStore = create<ForgeState>((set, get) => {
     const { session } = get();
     const seq = ++refreshSeq;
     if (!session) {
-      set({ graph: null, comparison: null, loading: false });
+      set({ graph: null, comparison: null, trace: null, loading: false });
       return;
     }
     set({ loading: true });
     const req = request(get());
     const inspection = loadInspection();
     try {
-      const [graph, comparison] = await Promise.all([
+      const [graph, comparison, trace] = await Promise.all([
         api.fetchGraph(session.session_id, req),
         api.compare(session.session_id, req),
+        api.fetchTrace(session.session_id, { ...req, learning_rate: get().previewLr }),
       ]);
       if (seq === refreshSeq) {
-        set({ graph, comparison, loading: false, error: null });
+        set({ graph, comparison, trace, loading: false, error: null });
         graphListeners.forEach((fn) => fn(graph));
       }
     } catch (err) {
@@ -116,6 +122,8 @@ export const useForgeStore = create<ForgeState>((set, get) => {
     mode: 'learn',
     graph: null,
     comparison: null,
+    trace: null,
+    previewLr: 0.1,
     inspection: null,
     loading: false,
     inspecting: false,
@@ -124,7 +132,7 @@ export const useForgeStore = create<ForgeState>((set, get) => {
     setSession: (session) => {
       set({
         session, probe: DEFAULT_PROBE, interventions: [], checkpointEpoch: null,
-        selection: null, inspection: null, graph: null, comparison: null, error: null,
+        selection: null, inspection: null, graph: null, comparison: null, trace: null, error: null,
       });
       return refresh();
     },
@@ -146,6 +154,10 @@ export const useForgeStore = create<ForgeState>((set, get) => {
       return loadInspection();
     },
     setMode: (mode) => set({ mode }),
+    setPreviewLr: (previewLr) => {
+      set({ previewLr });
+      return refresh();
+    },
     setInterventions: changeInterventions,
     addIntervention: (i) => changeInterventions([...get().interventions, i]),
     undo: () => changeInterventions(iv.undo(get().interventions)),

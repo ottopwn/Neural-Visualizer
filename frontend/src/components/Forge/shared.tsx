@@ -9,7 +9,7 @@ export function ProvenanceBadge({ provenance }: { provenance: Provenance }) {
   return (
     <span
       className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border"
-      style={{ borderColor: 'rgba(16,185,129,0.4)', color: '#6ee7b7', background: 'rgba(16,185,129,0.08)' }}
+      style={{ borderColor: 'rgba(16,185,129,0.4)', color: 'var(--text-pos)', background: 'rgba(16,185,129,0.08)' }}
       title={provenance.note}
     >
       <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#10b981' }} />

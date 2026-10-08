@@ -1,29 +1,26 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { ThemeContext, readStoredTheme, type Theme } from './theme';
 
-export type Theme = 'dark' | 'cyberpunk' | 'matrix' | 'paper';
-
-interface ThemeCtx {
-  theme: Theme;
-  setTheme: (t: Theme) => void;
+function stored(): Theme {
+  try {
+    return readStoredTheme(localStorage.getItem('nv-theme'));
+  } catch {
+    return 'dark';
+  }
 }
 
-const ThemeContext = createContext<ThemeCtx>({ theme: 'dark', setTheme: () => {} });
-
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    return (localStorage.getItem('nv-theme') as Theme) ?? 'dark';
-  });
+  const [theme, setThemeState] = useState<Theme>(stored);
 
   const setTheme = (t: Theme) => {
     setThemeState(t);
-    localStorage.setItem('nv-theme', t);
+    try { localStorage.setItem('nv-theme', t); } catch { /* storage unavailable */ }
   };
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme === 'dark' ? '' : theme);
+    if (theme === 'dark') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
   return <ThemeContext.Provider value={{ theme, setTheme }}>{children}</ThemeContext.Provider>;
 }
-
-export const useTheme = () => useContext(ThemeContext);

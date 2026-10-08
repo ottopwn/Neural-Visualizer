@@ -1,331 +1,173 @@
-<!-- <p align="center">
-  <img src="https://github.com/user-attachments/assets/970498f7-008c-487b-b58e-5330f2770ca9" alt="Neural Visualizer" width="100%" />
-</p> -->
-
 <h1 align="center">Neural Forge</h1>
 
 <p align="center">
-  <strong>A laboratory for looking inside a real neural network — and changing it.</strong><br/>
-  Build and train a network, click any neuron, layer or connection to see what it actually computes,
-  then disable or rewire it and watch the prediction change.
+  <strong>Inspect. Intervene. Understand.</strong><br/>
+  A scientific instrument for looking inside a real neural network: train it, rewind its training, follow one input
+  through every multiplication and every gradient, change a neuron and watch the prediction change — in 2D, in 3D,
+  and inside a small real Transformer.
 </p>
 
-<p align="center"><sub>Neural Forge is evolving from <a href="https://github.com/PeakScripter/Neural-Visualizer">Neural Visualizer</a> by PeakScripter (GPL-3.0); all original features are preserved.</sub></p>
+<p align="center"><sub>Neural Forge is built on <a href="https://github.com/PeakScripter/Neural-Visualizer">Neural Visualizer</a> by PeakScripter (GPL-3.0). The original features are preserved and labelled for what they are.</sub></p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/React_19-61DAFB?logo=react&logoColor=black&style=flat-square" />
   <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white&style=flat-square" />
   <img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white&style=flat-square" />
   <img src="https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white&style=flat-square" />
-  <img src="https://img.shields.io/badge/TensorFlow.js-FF6F00?logo=tensorflow&logoColor=white&style=flat-square" />
   <img src="https://img.shields.io/badge/Three.js-000000?logo=threedotjs&logoColor=white&style=flat-square" />
   <img src="https://img.shields.io/badge/License-GPL_v3-blue?style=flat-square" />
 </p>
 
----
-
-## 🎬 Demo
-
-<!-- <p align="center"> -->
-https://github.com/user-attachments/assets/fc5b9114-0085-40b6-bdf9-fa3208ce19ff
-<!-- </p> -->
+<p align="center"><img src="docs/screenshots/time-machine-dark.jpg" alt="Training Time Machine at epoch 5 with the decision regions, the network and the Neural Microscope" width="100%" /></p>
 
 ---
 
-## 🔬 New in Neural Forge
+## Why it exists
 
-> Status: second milestone. The Microscope, What-if mode and the Training Time Machine work for
-> **ANN (MLP) models**. Other model types are still drawn as illustrative diagrams and are labelled as such.
+Most neural-network visualisers draw a diagram and animate it. Neural Forge does something stricter:
 
-### Training Time Machine (tab *Forge → Time Machine*)
-Every training epoch stores an immutable checkpoint of the real model. The Time Machine lets you travel
-through that history and watch the network learn:
+> **A number is shown as a model internal only if a model computed it.**
 
-- **Timeline instrument** — the real per-epoch loss and accuracy curves, a tick for every stored checkpoint,
-  markers for notable events (first ≥ 90 % accuracy, best accuracy, lowest loss, largest loss drop, start of each
-  training run with its learning rate / batch size). Click or drag to travel (snaps to stored checkpoints), step
-  backward/forward, jump to first/latest, **play / pause** at 0.5×–4×, and **Back to live**. Keyboard: Space, ←/→, Home/End.
-  A *linear* or *even* (checkpoints evenly spaced) time axis.
-- **Decision regions per epoch** — the real P(class 1) map of the checkpoint under the playhead with the 0.5 contour,
-  the dataset, and rings on the points it misclassifies; loss, accuracy, mistakes and how many points changed
-  prediction since the previous checkpoint.
-- **The same neuron through time** — select a neuron, layer or connection; it stays selected while you move. The
-  *Through time* panel charts its bias, weight norms, activation on the probe, dataset activation statistics and
-  gradients at every checkpoint, and the Microscope shows its full historical inspection.
-- **Compare A ↔ B** — pick two checkpoints (or drag the A/B markers): loss / accuracy / confidence deltas, how many
-  predictions changed (and how many became correct or wrong), decision regions A, B and *where the class changed*,
-  per-layer parameter change (‖ΔW‖, ‖Δb‖, relative change, most-changed neurons), the probe's prediction, and the
-  selected component side by side (with its response maps on a shared colour scale).
-- **Training health (Lab)** — per layer: weight norm, the training gradient norm and update size logged during the
-  real run, dead-neuron and saturation fractions measured on each checkpoint.
-- **Learn mode** narrates what changed, using only the real numbers (e.g. *"Between epoch 2 and epoch 50, accuracy
-  increased from 63.5% to 99.5% while the loss decreased from 0.6287 to 0.0212"*).
-- Clear state labels everywhere: **LIVE**, **HISTORICAL · EPOCH n** (stored checkpoint), **WHAT-IF ×n** (temporary overlay).
-  What-if edits can be tried on a historical checkpoint; they never modify it.
+Every value in the Network view, Microscope, Time Machine, Forward/Backward Explorer, 3D view and Transformer Lab comes
+from a PyTorch forward or backward pass that runs on your machine, and each panel says which weights it used:
+`LIVE · EPOCH n`, `HISTORICAL · EPOCH n` (a stored checkpoint) or `WHAT-IF ×n` (a temporary overlay). Views that are
+not computed from your model are labelled **ILLUSTRATIVE** or **SYNTHETIC**.
 
-The Microscope's old *Weights* selector is replaced by a compact version of the same timeline.
+## What you can do
 
-### Neural Microscope (tab *Forge → Microscope*)
-Build an **ANN**, train it, then click any neuron, layer header, or contribution bar. Everything shown is
-computed by a PyTorch forward/backward pass of *your* model on a probe input you choose:
-
-- **Neuron** — its inputs, weights, each input's contribution `w·a`, bias, pre-activation `z`, activation
-  `f(z)` drawn on the activation curve, gradients (`dL/da`, `dL/dz`, `dL/db`, `dL/dw`), its activation
-  histogram over the whole dataset (with "dead neuron" detection), and a **response map** showing where in
-  the input plane it fires.
-- **Layer** — weight matrix heatmap, bias and activation statistics, never-active neurons, `dL/dW`, tensor shapes.
-- **Connection** — weight, carried signal, share of the target's input and rank, gradient, dataset-wide statistics.
-- **Probe input** — click a dataset point (true label used for gradients) or any free point on the decision map.
-- **Timeline** — inspect any stored training checkpoint (e.g. epoch 0 vs. epoch 50); see the Time Machine below.
-- **Learn / Lab modes** — Learn explains each component in plain language generated from the real values;
-  Lab exposes the numbers, equations, gradients and shapes.
-- Graph "signal" view: edge thickness/colour = real contribution `w·a` on the current probe.
-
-### What-if mode
-From the inspector you can **disable a neuron**, **cut a connection**, or **set a weight / bias**. The
-change is applied to the real forward pass (as an overlay — stored weights are never modified) and the app
-shows **original vs. after** class probabilities, dataset accuracy, the fraction of predictions that flipped,
-and decision regions before and after. **Undo**, **Reset** and per-component **Restore** are available.
-
-### Honest data everywhere
-- ANN builds now create a real model session: the Architecture, Forward, Backprop, Weights, Activations
-  and Pruning tabs show its real values and real gradients (`REAL MODEL VALUES` badge).
-- **Train Model** (ANN) runs real mini-batch training (Adam, cross-entropy) and records checkpoints; the
-  Training and Decision tabs show the real results.
-- Graphs for other model types carry an `ILLUSTRATIVE VALUES` badge; synthetic charts say so in their badge.
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/AUDIT_AND_ROADMAP.md](docs/AUDIT_AND_ROADMAP.md).
-
----
-
-## ✨ What was new in v3.0 (Neural Visualizer)
-
-The entire application has been **rebuilt from scratch** — migrated from a single-file Dash/Plotly app to a modern **React + FastAPI** architecture with 15+ interactive visualization tabs, in-browser training, and a polished dark-mode UI.
-
-**Recent additions**
-- **Guided Tour** — 20-step interactive tutorial with pulsing element highlights and arrow badges; auto-starts on first visit, re-launchable from the header
-- **Input / Output node controls** — configure the exact number of input features (1–16) and output neurons (1–10) per architecture
-- **Code Template Editor** — write your own code scaffold using `{{variables}}` that auto-fill from current settings in real time (alongside the existing PyTorch / Keras generators)
-- **3D layout fix** — Transformer and other architectures with non-contiguous layer indices now render with even spacing in the 3D view
-
----
-
-## 🧠 Supported Model Types
-
-| Model | Description |
+| Workspace | What it shows (all real for ANN/MLP models) |
 |---|---|
-| **ANN** | Fully-connected feedforward network |
-| **CNN** | Convolutional neural network with pooling layers |
-| **RNN** | Vanilla recurrent network |
-| **LSTM** | Long Short-Term Memory network |
-| **GAN** | Generator + Discriminator adversarial pair |
-| **Transformer** | Multi-head self-attention encoder |
-| **Diffuser** | U-Net style encoder–decoder with time embedding |
+| **Network** | The live MLP. Edge thickness and colour = the real signal `w·a` on the probe input; node fill = activation. Click (or Tab + Enter) any neuron, layer header or connection. |
+| **Neural Microscope** (right column) | For the selected component: inputs, weights, every `w·a`, bias, `z`, activation on its curve, gradients (`dL/da`, `dL/dz`, `dL/db`, `dL/dw`), dataset statistics, dead-neuron detection, response map. Plus the probe input and the prediction. |
+| **What-if** | Disable a neuron, cut a connection, set a weight or bias. Applied as an overlay to the forward pass (stored weights never change): original vs after probabilities, dataset accuracy, fraction of flipped predictions, decision regions before/after. Undo / Reset / Restore. |
+| **Time Machine** | Every training epoch is an immutable checkpoint. Scrub, step, play, rewind; per-epoch decision regions and mistakes; the selected neuron through time; A ↔ B epoch comparison; training health (Lab). |
+| **Forward / Backward** | One probe, step by step. Forward: input → `z = W·a + b` → activation → … → logits → softmax → prediction, with every term of every weighted sum. Backward: loss → `dL/dlogits = p − y` → `dL/dW = δ⊗a` → `Wᵀ·δ` → `δ = dL/da ⊙ f′(z)` → input saliency, `−η·dL/dw`, and a real one-step SGD preview. *Compare with epoch* shows the same pass at another checkpoint. |
+| **3D** | The real network in 3D: instanced neurons, batched connections coloured by signal `w·a`, weights or gradients; follows the forward/backward pass with pulses on the strongest real terms; historical checkpoints and what-if edits; orbit / pan / zoom / fit / focus, fullscreen, a layer-by-layer fly-through, a neuron card with its real inputs × weights, bias, z, activation and δ, Low / Medium / High quality, and an optional aesthetic layer (glow halos sized by the same real |value| as the sphere colour, depth fog). When not every connection is drawn, it says so ("Showing 600 of 1,152 connections — the strongest by \|w·a\|"). |
+| **Transformer Lab** | A tiny real Transformer (2 layers × 2 heads, d = 32, 28.5k parameters) trained locally on template sentences: tokens, embeddings, per-head Q / K / V, scaled scores, causal mask, softmax attention, residual stream, MLP, next-token probabilities, and head ablation. **It is not GPT, ChatGPT or Claude.** |
+| **Analysis** | Secondary views, each tagged REAL / ILLUSTRATIVE / SYNTHETIC / TOOL: training curves, decision boundary, a real filter-normalised loss landscape of your model, weight histograms, layer activations, step animations, in-browser TF.js tools, architecture comparison, PyTorch/Keras code export. |
+| **Home** | Three paths — Explore, Learn (the guided tour), Laboratory — next to a live, freshly initialised real PyTorch network (colours = its real signal; the flowing motion is labelled decorative). |
+| **Demos & Present** | A first-run welcome with one-click demos and a 10-step presentation journey. They drive the real application (build, train, rewind, select, disable, explore) and narrate the resulting real numbers. |
 
----
+**Two experiences.** *Explore* (the default for new visitors) is a three-step path for beginners — build a network,
+train it and rewind its training, then find its most important neuron by really switching each one off — on the same
+real PyTorch model. *Laboratory* is the full instrument set above. Inside the Laboratory, the *Learn* level explains
+each view in plain sentences built from the real values; the *Lab* level shows equations, tensor shapes and raw
+numbers. Dark and Paper (light) themes.
 
-## 🚀 Features
+**English / Italiano.** The interface is translated natively (selector in the top bar; default from the browser
+language, remembered in `localStorage`). The page opts out of browser auto-translation (`translate="no"`), which used
+to blank the React UI, and error boundaries keep any view crash from taking down the whole app. Not yet translated:
+the detailed scientific explanations inside the Laboratory instruments (Microscope, Pass Explorer, Time Machine
+notes, Transformer Lab), which stay in English.
 
-### Network Building & Visualization
-- **Interactive Architecture Builder** — Configure hidden layers (1–5), neurons per layer, activation functions (ReLU, Sigmoid, Tanh, LeakyReLU, ELU), loss functions, and regularization (L1 / L2 / L1L2) from the sidebar. *(The input/output node sliders only affect the code export; real ANN models use the dataset's 2 features and 2 classes.)*
-- **2D & 3D Network Graphs** — Toggle between a D3-powered 2D layout and a fully interactive Three.js 3D view with orbit controls
-- **Forward Propagation** — Step-by-step animation of data flowing through each layer with active node/edge highlighting
-- **Backpropagation** — Step through gradient flow in reverse; for ANN the per-neuron gradients are real
+<table>
+<tr>
+<td><img src="docs/screenshots/backward-dark.jpg" alt="Backward pass: through the activation, δ = dL/da ⊙ f′(z)" /></td>
+<td><img src="docs/screenshots/forward-paper.jpg" alt="Forward pass: z = Σ w·a + b for one neuron, in the Paper theme" /></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/3d-dark.jpg" alt="The real network in 3D at a historical checkpoint" /></td>
+<td><img src="docs/screenshots/transformer-paper.jpg" alt="Transformer Lab attention explorer" /></td>
+</tr>
+</table>
 
-### Training & Analysis
-- **Train Model (ANN)** — Real server-side PyTorch training of the session model; loss & accuracy per epoch. For other model types the button is *Simulate Training* and the curve is synthetic (badge: *Synthetic curve*)
-- **Live In-Browser Training (TF.js)** — Train your configured architecture entirely client-side using TensorFlow.js with real-time loss/accuracy canvas charts
-- **Decision Boundaries** — For ANN, the regions of the trained session model; for other types, an untrained model (badge says which)
-- **Loss Landscape** — A filter-normalised 2-D slice (Li et al. 2018) of the loss around a *randomly initialised* model of the chosen architecture
+## Real vs illustrative
 
-### Advanced Visualizations
-- **Weight Distribution Histograms** — Inspect per-layer weight distributions (real for ANN)
-- **Layer Activation Heatmaps** — Visualize activations across neurons and layers (real for ANN, on the current probe)
-- **Attention Heatmaps** — A synthetic attention-like pattern (not computed from a model; labelled *Synthetic pattern*)
-- **Network Pruning** — Visually hide neurons whose |activation| is below a threshold (a view filter; use What-if to change predictions)
+| Model type | Status |
+|---|---|
+| **ANN (MLP)** | **Real.** PyTorch model, real training (Adam, cross-entropy), checkpoints, Microscope, What-if, Time Machine, Forward/Backward Explorer, 3D, loss landscape. Binary classification on 2-D synthetic datasets or a CSV (up to 16 features, labels 0/1). |
+| **Transformer Lab** | **Real, but a separate tiny model** trained locally on a synthetic corpus — not the "Transformer" option of the model selector. |
+| CNN, RNN, LSTM, GAN, Transformer, Diffuser (model selector) | **Illustrative diagrams.** Node values are placeholders; "Simulate" produces a synthetic curve. The Forge instruments refuse to inspect them. |
+| Live Train, LR Sweep, Custom Activation | Real TensorFlow.js models trained in the browser, separate from the Forge session. |
+| Attention pattern (Analysis) | Synthetic, kept as a labelled legacy diagram; the real attention matrices are in Transformer Lab. |
 
-### Tools
-- **Learning Rate Sweep** — Batch-compare 5 learning rates side-by-side, trained with TF.js
-- **Custom Activation Designer** — Draw your own activation function and watch it applied in a mini-network
-- **Architecture Comparison** — Side-by-side 3D compare of two different network configurations with stat bars (nodes, edges, params)
-- **Code Export** — Auto-generate ready-to-use PyTorch or Keras code from your current configuration; copy to clipboard with one click
-- **Code Template Editor** — Switch to the Template tab to write your own scaffold using `{{variables}}` (`{{n_layers}}`, `{{input_nodes}}`, `{{loss_fn_code}}`, etc.) that fill in real time from the active config
+See [docs/AUDIT_AND_ROADMAP.md](docs/AUDIT_AND_ROADMAP.md) for the full audit of every view.
 
-### UI & Experience
-- **Guided Tour** — 20-step interactive tutorial with pulsing highlights and directional arrow badges on every referenced UI element; auto-launches on first visit, re-accessible via the **Tour** button in the header; keyboard-navigable (← →, Esc)
-- **4 Themes** — Dark, Cyberpunk, Matrix, Paper (light mode)
-- **Cinema Mode** — Full-screen guided walkthrough of forward propagation with layer-by-layer narration, auto-play, and keyboard navigation
-- **Dataset Preview** — Live scatter plot of the selected synthetic dataset
-- **Custom Dataset Upload** — Load your own CSV data
-- **Grouped Tab Bar** — 15 visualization tabs organized into Network · Analysis · Train · Tools groups
-- **Framer Motion Animations** — Smooth tab transitions, status toasts, and micro-interactions throughout
-
-### Datasets
-Choose from **4 synthetic datasets** with adjustable noise:
-- Circle · Gaussian · XOR · Spiral
-
----
-
-## 🏗️ Architecture
+## Architecture
 
 ```
-Neural-Visualizer/
-├── backend/                # Python FastAPI server
-│   ├── main.py             # REST API endpoints (legacy + mounts /api/forge)
-│   ├── forge/              # Neural Forge: real MLP, introspection, interventions, checkpoints, time machine
-│   ├── tests/              # pytest suite for forge
-│   ├── models.py           # PyTorch model definitions (7 architectures)
-│   ├── compute.py          # Illustrative graphs, propagation steps, landscapes
-│   ├── datasets.py         # Synthetic dataset generators
-│   └── requirements.txt / requirements-dev.txt
-├── frontend/               # React 19 + TypeScript + Vite
-│   ├── src/
-│   │   ├── forge/          # Forge types, API client, store, pure helpers (+ vitest tests)
-│   │   ├── components/
-│   │   │   ├── Forge/           # Neural Microscope, What-if & Training Time Machine UI
-│   │   │   ├── Layout/          # Header with theme switcher & Tour button
-│   │   │   ├── Sidebar/         # NetworkConfig, TrainingConfig panels
-│   │   │   ├── Visualizations/  # 15 visualization components
-│   │   │   ├── CinemaMode.tsx   # Full-screen guided walkthrough
-│   │   │   ├── Tutorial.tsx     # 20-step interactive guided tour
-│   │   │   ├── DatasetPreview.tsx
-│   │   │   └── DatasetUpload.tsx
-│   │   ├── api/            # Axios API client
-│   │   ├── store/          # Zustand state management
-│   │   ├── contexts/       # Theme context
-│   │   └── types/          # TypeScript type definitions
-│   └── package.json
-├── docs/                   # Architecture, audit and roadmap
-├── start.sh                # Launch both servers with one command
-├── Visualization.py        # Legacy Dash app (preserved)
-└── README.md
+frontend/ (React 19, TypeScript, Vite, Tailwind, Zustand, D3, Three.js / R3F)
+  src/app/            workspace + experiment actions, demos and presentation journey
+  src/forge/          wire types, API client, stores (experiment, time machine, explorer, transformer lab),
+                      pure helpers for the explorer and the 3D scene (unit-tested)
+  src/components/     Shell (top bar, experiment panel, inspector), Workspaces, Forge (Microscope,
+                      Time Machine, Explorer, ThreeD), Transformer, legacy Visualizations
+  e2e/                Playwright smoke tests (start the real backend and frontend)
+backend/ (FastAPI, PyTorch)
+  forge/mlp.py        functional MLP with a full forward trace
+  forge/session.py    model sessions, real training, checkpoints
+  forge/introspect.py Microscope payloads, what-if comparison, computation trace (Pass Explorer / 3D)
+  forge/timemachine.py read-only history views
+  forge/landscape.py  loss landscape of the session model
+  forge/transformer.py the Transformer Lab model, training and trace
+  forge/api.py        /api/forge/* router
+  main.py, compute.py, models.py  legacy illustrative endpoints
 ```
 
----
+Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · demo script: [docs/DEMO.md](docs/DEMO.md) · tests: [docs/TESTING.md](docs/TESTING.md).
 
-## 📦 Tech Stack
+## Getting started
 
-| Layer | Technology |
-|---|---|
-| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS |
-| **3D Rendering** | Three.js, React Three Fiber, Drei |
-| **2D Charts** | D3.js, Plotly.js (bundled, lazy-loaded), HTML Canvas |
-| **Animations** | Framer Motion |
-| **State** | Zustand |
-| **Icons** | Lucide React |
-| **In-Browser ML** | TensorFlow.js |
-| **Backend** | FastAPI, Uvicorn |
-| **ML Engine** | PyTorch, scikit-learn, NumPy, SciPy |
+**Requirements:** Python 3.10+ (tested with 3.12 and 3.13), Node.js 20+ (tested with 22), ~1 GB disk for CPU PyTorch.
+No API keys, accounts or paid services.
 
----
-
-## 🛠️ Getting Started
-
-### Prerequisites
-- **Python 3.10+** with pip
-- **Node.js 18+** with npm
-
-### Installation
-
-**1. Clone the repository**
 ```bash
-git clone https://github.com/PeakScripter/Neural-Visualizer.git
+git clone https://github.com/ottopwn/Neural-Visualizer.git
 cd Neural-Visualizer
+./start.sh --setup      # once: CPU-only PyTorch + backend deps + npm ci
+./start.sh              # backend on :8000, frontend on http://127.0.0.1:5173
 ```
 
-**2. Set up the backend**
+Manual setup (any OS):
+
 ```bash
+# backend
 cd backend
-pip install -r requirements.txt        # add requirements-dev.txt to run the tests
-```
+python -m pip install torch --index-url https://download.pytorch.org/whl/cpu   # CPU wheel (much smaller)
+python -m pip install -r requirements-dev.txt
+python -m uvicorn main:app --host 127.0.0.1 --port 8000
 
-**3. Set up the frontend**
-```bash
+# frontend (second terminal)
 cd frontend
-npm install
+npm ci
+npm run dev            # http://localhost:5173
 ```
 
-### Running the App
+The frontend calls the backend at `VITE_API_BASE_URL` (default `http://localhost:8000`, see `frontend/.env.example`).
+Run uvicorn with a **single worker**: model sessions and checkpoints live in the backend process memory (8 sessions,
+LRU) and are lost on restart — just click **Build** again. The Transformer Lab model trains on first use (≈ 5–10 s on a
+laptop CPU) once per backend process.
 
-**Option A — Start both servers with one command (Linux/macOS)**
-```bash
-chmod +x start.sh
-./start.sh
-```
-
-**Option B — Start each server separately**
-
-Terminal 1 (Backend):
-```bash
-cd backend
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-Terminal 2 (Frontend):
-```bash
-cd frontend
-npm run dev
-```
-
-Then open your browser at **http://localhost:5173**
-
-> **Note:** The backend runs on port `8000` and the frontend dev server on port `5173`; the frontend calls the backend at `VITE_API_BASE_URL` (default `http://localhost:8000`). Run uvicorn with a **single worker**: model sessions live in the backend process memory and are lost on restart (just click *Build Network* again).
-
-### Running the tests
+## Testing
 
 ```bash
-cd backend && python -m pytest -q        # numerical correctness of the microscope, interventions, training, time machine, API
-cd frontend && npm test                  # store, playback and helper unit tests (vitest)
-cd frontend && npm run typecheck && npm run lint && npm run build
+cd backend  && python -m pytest -q          # 74 tests: numerics vs independent autograd, training, API
+cd frontend && npm test                     # 84 unit tests (stores, explorer/3D helpers on a real trace)
+cd frontend && npm run lint && npm run typecheck && npm run build
+cd frontend && npx playwright install chromium && npm run test:e2e   # 15 browser tests (start both servers)
 ```
 
----
+GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs all of the above on every push and pull request.
 
-## 📖 Usage
+## Limitations
 
-1. **Follow the Tour** — a 20-step guided tutorial launches automatically on first visit; click **Tour** in the header to reopen it at any time
-2. **Use the Microscope** — choose **ANN**, click **Build Network**, then **Train Model**; open *Forge → Microscope*, pick a probe point, click neurons/layers, and try *Disable* or edit a weight to compare predictions before/after
-3. **Travel through training** — open *Forge → Time Machine*, press **Play** or drag along the timeline, click a neuron to follow it through time, and use **Compare A ↔ B** to see what changed between two epochs
-3. **Select a model type** (ANN, CNN, RNN, LSTM, GAN, Transformer, Diffuser) and configure input nodes, output nodes, hidden layers, neurons, and activations in the sidebar
-4. **Click "Build Network"** to generate the architecture graph
-5. **Explore tabs** — switch between Architecture, Forward/Backward Propagation, Weights, Activations, Pruning, and more
-6. **Toggle 2D/3D** to view the network in an interactive Three.js scene
-7. **Configure training parameters** (dataset, noise, learning rate, batch size, epochs) and click **Train Model** (ANN) or **Simulate Training** (other types)
-8. **View results** — training curves, decision boundaries, and loss landscapes
-9. **Try Live Training** — train in-browser with TensorFlow.js and watch loss/accuracy update in real-time
-10. **Launch Cinema Mode** for a narrated, auto-playing walkthrough of forward propagation
-11. **Export code** — generate PyTorch or Keras code, or open the **Template** tab to write and preview your own code scaffold with `{{variables}}`
+- Real introspection covers MLP classifiers (2 classes; 1–5 hidden layers; ≤ 192 hidden neurons in the UI, ≤ 128 per layer).
+  Decision regions and response maps need 2-D inputs.
+- Sessions and checkpoints are in memory (single process); at most 48 checkpoints per session are kept (balanced
+  spacing), so long runs cannot visit every epoch.
+- Gradients in the Microscope and the explorer are for one probe input; the SGD preview is plain gradient descent on
+  that input, while real training uses Adam on mini-batches.
+- The 3D view draws at most the selected number of connections (default 600) and discloses it.
+- The Transformer Lab model is a toy: word-level vocabulary of 38 template words, context 24; unknown words become `<unk>`.
+- No experiment export/import yet.
 
----
+## Earlier demo video
 
-## 🔌 API Endpoints
+The original demo video (recorded with the pre-Forge Neural Visualizer interface) is still available:
+https://github.com/user-attachments/assets/fc5b9114-0085-40b6-bdf9-fa3208ce19ff
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/health` | Health check |
-| `POST` | `/api/build-network` | Build network graph from config |
-| `GET` | `/api/network-graph` | Get current network graph |
-| `POST` | `/api/forward-propagation` | Compute forward propagation steps |
-| `POST` | `/api/backward-propagation` | Compute backward propagation steps |
-| `POST` | `/api/decision-boundary` | Compute decision boundary |
-| `POST` | `/api/loss-landscape` | Compute loss landscape surface |
-| `POST` | `/api/simulate-training` | Synthetic training curve (legacy, not a real training run) |
-| `POST` | `/api/dataset` | Generate dataset preview |
-| `GET` | `/api/forge/capabilities` | What the introspection layer supports |
-| `POST` | `/api/forge/sessions` | Create a real MLP session (untrained) |
-| `POST` | `/api/forge/sessions/{id}/train` | Real training; appends history + checkpoints |
-| `POST` | `/api/forge/sessions/{id}/graph` | Real graph for a probe / interventions / checkpoint |
-| `POST` | `/api/forge/sessions/{id}/inspect` | Neuron / layer / connection inspection |
-| `POST` | `/api/forge/sessions/{id}/compare` | Before vs after interventions |
-| `GET` | `/api/forge/sessions/{id}/timeline` | Training log, per-checkpoint health, runs, events |
-| `POST` | `/api/forge/sessions/{id}/frame` | One stored checkpoint: metrics, predictions, decision regions |
-| `POST` | `/api/forge/sessions/{id}/component-history` | A neuron / layer / connection across all checkpoints |
-| `POST` | `/api/forge/sessions/{id}/epoch-compare` | Real differences between two checkpoints |
+## License
 
-Legacy endpoints `build-network`, `forward-propagation`, `backward-propagation` and `simulate-training` produce **illustrative / synthetic** data and are kept for the non-ANN diagrams. Forge request/response schemas are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and at `http://localhost:8000/docs`.
-
----
-
-## 📄 License
-
-This project is licensed under the **GNU General Public License v3.0** — see the [LICENSE](LICENSE) file for details.
+GNU General Public License v3.0 — see [LICENSE](LICENSE). Neural Forge is a derivative of
+[PeakScripter/Neural-Visualizer](https://github.com/PeakScripter/Neural-Visualizer) (GPL-3.0); the original code and its
+features remain under the same license.

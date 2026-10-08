@@ -4,9 +4,12 @@ import type { LossLandscapeData } from '../../types';
 
 interface Props {
   data: LossLandscapeData | null;
+  axisTitles?: [string, string];
 }
 
-export function LossLandscape({ data }: Props) {
+const DEFAULT_AXES: [string, string] = ['Weight 1', 'Weight 2'];
+
+export function LossLandscape({ data, axisTitles = DEFAULT_AXES }: Props) {
   const divRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,13 +51,13 @@ export function LossLandscape({ data }: Props) {
         scene: {
           bgcolor: 'rgba(0,0,0,0)',
           xaxis: {
-            title: { text: 'Weight 1', font: { color: '#9ca3af', size: 11 } },
+            title: { text: axisTitles[0], font: { color: '#9ca3af', size: 11 } },
             tickfont: { color: '#9ca3af', size: 9 },
             gridcolor: '#1f2937',
             backgroundcolor: 'rgba(0,0,0,0)',
           },
           yaxis: {
-            title: { text: 'Weight 2', font: { color: '#9ca3af', size: 11 } },
+            title: { text: axisTitles[1], font: { color: '#9ca3af', size: 11 } },
             tickfont: { color: '#9ca3af', size: 9 },
             gridcolor: '#1f2937',
             backgroundcolor: 'rgba(0,0,0,0)',
@@ -78,7 +81,7 @@ export function LossLandscape({ data }: Props) {
       });
     });
     return () => { cancelled = true; };
-  }, [data]);
+  }, [data, axisTitles]);
 
   if (!data) {
     return (

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import type { NetworkGraph as GraphData, NetworkNode } from '../../types';
 
@@ -23,7 +23,7 @@ const LAYER_TYPE_COLORS: Record<string, string> = {
 };
 
 const EDIT_COLOR = '#f59e0b';
-const SELECT_COLOR = '#fde047';
+
 
 /**
  * - architecture / forward / backward: the original Neural Visualizer modes.
@@ -80,6 +80,20 @@ export function NetworkGraph({
 
   const interactive = !!onNodeClick;
   const layerInteractive = !!onLayerClick;
+
+  // Redraw when the container is resized (collapsible panels, window resize).
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    let frame = 0;
+    const ro = new ResizeObserver(([e]) => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => setSize({ w: Math.round(e.contentRect.width), h: Math.round(e.contentRect.height) }));
+    });
+    ro.observe(el);
+    return () => { cancelAnimationFrame(frame); ro.disconnect(); };
+  }, [graph.nodes.length]);
 
   useEffect(() => {
     if (!svgRef.current || !containerRef.current || !graph.nodes.length) return;
@@ -140,16 +154,6 @@ export function NetworkGraph({
       });
     }
 
-    // Background grid
-    const gridG = svg.append('g').attr('class', 'grid').attr('opacity', 0.15);
-    const gridSpacing = 40;
-    for (let x = 0; x < width; x += gridSpacing) {
-      gridG.append('line').attr('x1', x).attr('y1', 0).attr('x2', x).attr('y2', height).attr('stroke', '#374151').attr('stroke-width', 0.5);
-    }
-    for (let y = 0; y < height; y += gridSpacing) {
-      gridG.append('line').attr('x1', 0).attr('y1', y).attr('x2', width).attr('y2', y).attr('stroke', '#374151').attr('stroke-width', 0.5);
-    }
-
     const g = svg.append('g');
 
     // Zoom
@@ -171,13 +175,19 @@ export function NetworkGraph({
           .attr('cursor', layerInteractive ? 'pointer' : 'default')
           .attr('data-layer', layer);
         hg.append('rect')
-          .attr('x', -46).attr('y', -12).attr('width', 92).attr('height', 32).attr('rx', 6)
-          .attr('fill', 'rgba(17,24,39,0.85)').attr('stroke', '#374151');
+          .attr('x', -48).attr('y', -13).attr('width', 96).attr('height', 34).attr('rx', 6)
+          .style('fill', 'var(--bg-card)').style('stroke', 'var(--border-soft)');
         hg.append('text').attr('text-anchor', 'middle').attr('y', 1)
-          .attr('font-size', '10px').attr('font-weight', 600).attr('fill', '#e2e8f0').text(label.title);
+          .attr('font-size', '11px').attr('font-weight', 600).style('fill', 'var(--text-primary)').text(label.title);
         if (label.subtitle) {
-          hg.append('text').attr('text-anchor', 'middle').attr('y', 13)
-            .attr('font-size', '8.5px').attr('fill', '#9ca3af').text(label.subtitle);
+          hg.append('text').attr('text-anchor', 'middle').attr('y', 14)
+            .attr('font-size', '9.5px').style('fill', 'var(--text-muted)').text(label.subtitle);
+        }
+        if (layerInteractive) {
+          hg.attr('tabindex', 0).attr('role', 'button').attr('aria-label', `Inspect layer ${label.title}`)
+            .on('keydown', (event: KeyboardEvent) => {
+              if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); layerClickRef.current?.(layer); }
+            });
         }
         hg.on('click', (event) => {
           event.stopPropagation();
@@ -267,12 +277,14 @@ export function NetworkGraph({
     const nodeG = g.append('g').attr('class', 'nodes');
     const tooltip = d3.select(container).append('div')
       .style('position', 'absolute')
-      .style('background', 'rgba(17, 24, 39, 0.95)')
-      .style('border', '1px solid #374151')
+      .style('background', 'var(--bg-card)')
+      .style('border', '1px solid var(--border-soft)')
+      .style('box-shadow', 'var(--shadow-pop)')
       .style('border-radius', '8px')
       .style('padding', '8px 12px')
       .style('font-size', '12px')
-      .style('color', '#e2e8f0')
+      .style('font-variant-numeric', 'tabular-nums')
+      .style('color', 'var(--text-primary)')
       .style('pointer-events', 'none')
       .style('opacity', '0')
       .style('transition', 'opacity 0.15s')
@@ -289,7 +301,13 @@ export function NetworkGraph({
 
       const nodeGroup = nodeG.append('g')
         .attr('transform', `translate(${cx}, ${cy})`)
-        .attr('cursor', 'pointer');
+        .attr('cursor', interactive ? 'pointer' : 'default');
+      if (interactive) {
+        nodeGroup.attr('tabindex', 0).attr('role', 'button').attr('aria-label', `Inspect neuron ${node.name}`)
+          .on('keydown', (event: KeyboardEvent) => {
+            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); nodeClickRef.current?.(node); }
+          });
+      }
 
       // Outer glow ring for active nodes
       if (highlighted) {
@@ -365,14 +383,13 @@ export function NetworkGraph({
         .on('mouseenter', () => {
           tooltip.style('opacity', '1');
           const lines = [
-            `<strong style="color:#60a5fa">${node.name}</strong>`,
-            `Type: <span style="color:#a3e635">${node.layer_type}</span>`,
-            `Value: <span style="color:#34d399">${node.value?.toFixed(4)}</span>`,
-            node.z_val !== undefined && node.z_val !== null ? `z: <span style="color:#93c5fd">${node.z_val.toFixed(4)}</span>` : null,
-            node.activation ? `Activation: <span style="color:#fb923c">${node.activation}</span>` : null,
-            node.bias !== undefined && node.bias !== null ? `Bias: <span style="color:#c084fc">${node.bias.toFixed(4)}</span>` : null,
-            node.ablated ? `<span style="color:#f87171">Disabled (output forced to 0)</span>` : null,
-            interactive ? `<span style="color:#6b7280">Click to inspect</span>` : null,
+            `<strong>${node.name}</strong> <span style="color:var(--text-faint)">${node.layer_type}</span>`,
+            `<span style="color:var(--text-muted)">${mode === 'signal' ? 'output a' : 'value'}</span> <b style="font-family:var(--font-mono)">${node.value?.toFixed(4)}</b>`,
+            node.z_val !== undefined && node.z_val !== null ? `<span style="color:var(--text-muted)">z</span> <span style="font-family:var(--font-mono)">${node.z_val.toFixed(4)}</span>` : null,
+            node.activation ? `<span style="color:var(--text-muted)">f</span> ${node.activation}` : null,
+            node.bias !== undefined && node.bias !== null ? `<span style="color:var(--text-muted)">bias</span> <span style="font-family:var(--font-mono)">${node.bias.toFixed(4)}</span>` : null,
+            node.ablated ? `<span style="color:var(--text-neg)">Disabled (output forced to 0)</span>` : null,
+            interactive ? `<span style="color:var(--text-faint)">Click to inspect</span>` : null,
           ].filter(Boolean).join('<br/>');
           tooltip.html(lines);
         })
@@ -396,7 +413,7 @@ export function NetworkGraph({
       tooltip.remove();
       drawRef.current = null;
     };
-  }, [graph, activeNodeIds, activeEdgeIds, gradients, mode, minX, maxX, minY, maxY, layerLabels, interactive, layerInteractive]);
+  }, [graph, activeNodeIds, activeEdgeIds, gradients, mode, minX, maxX, minY, maxY, layerLabels, interactive, layerInteractive, size]);
 
   // Selection overlay: redrawn alone so selecting never rebuilds thousands of edges.
   useEffect(() => {
@@ -414,7 +431,7 @@ export function NetworkGraph({
         const bottom = Math.max(...ys.map((n) => draw.y(n.y))) + 20;
         sel.append('rect')
           .attr('x', x - 24).attr('y', top).attr('width', 48).attr('height', bottom - top).attr('rx', 12)
-          .attr('fill', 'rgba(253,224,71,0.06)').attr('stroke', SELECT_COLOR).attr('stroke-width', 1.5)
+          .attr('fill', 'rgba(253,224,71,0.06)').style('stroke', 'var(--select)').attr('stroke-width', 1.5)
           .attr('stroke-dasharray', '6,4');
       }
     }
@@ -425,7 +442,7 @@ export function NetworkGraph({
       if (!s || !t) return;
       sel.append('line')
         .attr('x1', draw.x(s.x)).attr('y1', draw.y(s.y)).attr('x2', draw.x(t.x)).attr('y2', draw.y(t.y))
-        .attr('stroke', SELECT_COLOR).attr('stroke-width', 3).attr('stroke-opacity', 0.95);
+        .style('stroke', 'var(--select)').attr('stroke-width', 3).attr('stroke-opacity', 0.95);
     });
     selectedNodeIds?.forEach((id) => {
       const n = nodeById.get(id);
@@ -433,22 +450,22 @@ export function NetworkGraph({
       const r = (n.layer_type === 'output' ? 14 : n.layer_type === 'input' ? 12 : 10) + 5;
       sel.append('circle')
         .attr('cx', draw.x(n.x)).attr('cy', draw.y(n.y)).attr('r', r)
-        .attr('fill', 'none').attr('stroke', SELECT_COLOR).attr('stroke-width', 2.5);
+        .attr('fill', 'none').style('stroke', 'var(--select)').attr('stroke-width', 2.5);
     });
   }, [graph, selectedNodeIds, selectedEdgeIds, selectedLayer, mode, layerLabels, minX, maxX, minY, maxY, activeNodeIds, activeEdgeIds, gradients]);
 
   if (!graph.nodes.length) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-3">
-        <div className="w-16 h-16 rounded-2xl bg-gray-800/50 flex items-center justify-center">
+      <div className="flex flex-col items-center justify-center h-full gap-3" style={{ color: 'var(--text-faint)' }}>
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: 'var(--bg-raised)' }}>
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <circle cx="5" cy="12" r="2" /><circle cx="19" cy="5" r="2" /><circle cx="19" cy="19" r="2" />
             <line x1="7" y1="12" x2="17" y2="6" /><line x1="7" y1="12" x2="17" y2="18" />
           </svg>
         </div>
         <div className="text-center">
-          <p className="text-sm font-medium text-gray-400">No network built yet</p>
-          <p className="text-xs text-gray-600 mt-1">Configure and click "Build Network"</p>
+          <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>No network built yet</p>
+          <p className="text-xs mt-1">Configure it in the Experiment panel and click Build</p>
         </div>
       </div>
     );
@@ -462,7 +479,7 @@ export function NetworkGraph({
           {Object.entries(LAYER_TYPE_COLORS)
             .filter(([type]) => graph.nodes.some((n) => n.layer_type === type))
             .map(([type, color]) => (
-              <div key={type} className="flex items-center gap-1 text-xs text-gray-400 bg-gray-900/80 px-2 py-1 rounded-md border border-gray-800">
+              <div key={type} className="overlay flex items-center gap-1 text-xs px-2 py-1" style={{ color: 'var(--text-muted)' }}>
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
                 <span className="capitalize">{type}</span>
               </div>
@@ -470,7 +487,7 @@ export function NetworkGraph({
         </div>
       )}
       {mode === 'backward' && (
-        <div className="absolute top-3 right-3 flex items-center gap-2 text-xs bg-gray-900/90 px-2.5 py-1.5 rounded-lg border border-gray-800">
+        <div className="overlay absolute top-3 right-3 flex items-center gap-2 text-xs px-2.5 py-1.5">
           {[['#3b82f6','vanishing'],['#10b981','healthy'],['#f59e0b','large'],['#ef4444','exploding']].map(([c,l]) => (
             <span key={l} className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full inline-block" style={{ background: c }} />
@@ -480,7 +497,7 @@ export function NetworkGraph({
         </div>
       )}
       {mode !== 'backward' && showHint && (
-        <div className="absolute top-3 right-3 text-xs bg-gray-900/80 px-2 py-1 rounded-md border border-gray-800" style={{ color: 'var(--text-faint)' }}>
+        <div className="overlay absolute top-3 right-3 text-xs px-2 py-1" style={{ color: 'var(--text-faint)' }}>
           Scroll to zoom · Drag to pan
         </div>
       )}

@@ -3,7 +3,9 @@ import * as tf from '@tensorflow/tfjs';
 import { Trash2, Play, Square, RotateCcw } from 'lucide-react';
 import { useNetworkStore } from '../../store/networkStore';
 
-function makeDataset(_name: string): [number[][], number[]] {
+// The custom-activation playground always uses this small fixed two-class dataset
+// (it never followed the dataset selector); it trains a separate TF.js model.
+function makeDataset(): [number[][], number[]] {
   const N = 150; const X: number[][] = []; const y: number[] = [];
   for (let i = 0; i < N; i++) {
     const a = Math.random()*2*Math.PI, r = Math.random()<.5?.4:.9;
@@ -15,7 +17,7 @@ function makeDataset(_name: string): [number[][], number[]] {
 interface TrainingPoint { epoch: number; loss: number; acc: number }
 
 export function CustomActivation() {
-  const { networkConfig, trainingConfig } = useNetworkStore();
+  const { networkConfig } = useNetworkStore();
   const drawRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<HTMLCanvasElement>(null);
   const [drawing, setDrawing] = useState(false);
@@ -51,7 +53,7 @@ export function CustomActivation() {
     ctx.strokeStyle='rgba(59,130,246,0.25)'; ctx.lineWidth=1.5; ctx.setLineDash([3,3]);
     ctx.beginPath();
     [[-2.5,0],[-0.01,0],[0,0],[2.5,2.5]].forEach(([x,y],i) => {
-      const [cx,cy] = toC(x,y); i===0?ctx.moveTo(cx,cy):ctx.lineTo(cx,cy);
+      const [cx,cy] = toC(x,y); if (i===0) ctx.moveTo(cx,cy); else ctx.lineTo(cx,cy);
     });
     ctx.stroke(); ctx.setLineDash([]);
 
@@ -73,7 +75,7 @@ export function CustomActivation() {
           if (px >= xs[xs.length-1]) py = ys[ys.length-1];
         }
         const [cx,cy] = toC(px, py);
-        xi===0?ctx.moveTo(cx,cy):ctx.lineTo(cx,cy);
+        if (xi===0) ctx.moveTo(cx,cy); else ctx.lineTo(cx,cy);
       }
       ctx.stroke();
     }
@@ -132,10 +134,10 @@ export function CustomActivation() {
     });
 
     ctx.strokeStyle='#ef4444'; ctx.lineWidth=2; ctx.beginPath();
-    results.forEach((r,i) => { const x2=xOf(i),y2=pad.top+ch-(r.loss/maxL)*ch; i===0?ctx.moveTo(x2,y2):ctx.lineTo(x2,y2); }); ctx.stroke();
+    results.forEach((r,i) => { const x2=xOf(i),y2=pad.top+ch-(r.loss/maxL)*ch; if (i===0) ctx.moveTo(x2,y2); else ctx.lineTo(x2,y2); }); ctx.stroke();
 
     ctx.strokeStyle='#10b981'; ctx.lineWidth=2; ctx.beginPath();
-    results.forEach((r,i) => { const x2=xOf(i),y2=pad.top+ch-r.acc*ch; i===0?ctx.moveTo(x2,y2):ctx.lineTo(x2,y2); }); ctx.stroke();
+    results.forEach((r,i) => { const x2=xOf(i),y2=pad.top+ch-r.acc*ch; if (i===0) ctx.moveTo(x2,y2); else ctx.lineTo(x2,y2); }); ctx.stroke();
 
     const last = results.at(-1)!;
     ctx.fillStyle='#ef4444'; ctx.font='9px Inter'; ctx.textAlign='left'; ctx.textBaseline='middle';
@@ -148,7 +150,7 @@ export function CustomActivation() {
     if (points.length < 2) return;
     stopRef.current = false; setResults([]); setRunning(true);
     const neurons = networkConfig.neurons.slice(0, networkConfig.n_layers);
-    const [X, y] = makeDataset(trainingConfig.dataset);
+    const [X, y] = makeDataset();
     const xT = tf.tensor2d(X), yT = tf.tensor1d(y, 'float32');
 
     const model = tf.sequential();
@@ -172,7 +174,7 @@ export function CustomActivation() {
     }
     xT.dispose(); yT.dispose(); model.dispose();
     setRunning(false);
-  }, [points, networkConfig, trainingConfig]);
+  }, [points, networkConfig]);
 
   return (
     <div className="flex flex-col h-full gap-3">

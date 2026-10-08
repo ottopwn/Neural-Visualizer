@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import * as tf from '@tensorflow/tfjs';
+
+type ActivationIdentifier = NonNullable<Parameters<typeof tf.layers.dense>[0]['activation']>;
 import { Play, Square } from 'lucide-react';
 import { useNetworkStore } from '../../store/networkStore';
 
@@ -33,7 +35,7 @@ function buildModel(neurons: number[], activations: string[], lr: number) {
   const m = tf.sequential();
   m.add(tf.layers.dense({ units: neurons[0]??16, inputShape:[2], activation:'relu' }));
   for (let i = 1; i < neurons.length; i++) {
-    m.add(tf.layers.dense({ units: neurons[i], activation: (activations[i]??'relu').toLowerCase() as any }));
+    m.add(tf.layers.dense({ units: neurons[i], activation: (activations[i]??'relu').toLowerCase() as ActivationIdentifier }));
   }
   m.add(tf.layers.dense({ units:1, activation:'sigmoid' }));
   m.compile({ optimizer: tf.train.adam(lr), loss:'binaryCrossentropy', metrics:['accuracy'] });
@@ -109,7 +111,7 @@ export function HyperparamSweep() {
       losses.forEach((l, i) => {
         const x2 = pad.left + (i / (EPOCHS - 1)) * cw;
         const y2 = pad.top + ch - (l / maxLoss) * ch;
-        i === 0 ? ctx.moveTo(x2, y2) : ctx.lineTo(x2, y2);
+        if (i === 0) ctx.moveTo(x2, y2); else ctx.lineTo(x2, y2);
       });
       ctx.stroke();
 
@@ -119,7 +121,7 @@ export function HyperparamSweep() {
       accs.forEach((a, i) => {
         const x2 = pad.left + (i / (EPOCHS - 1)) * cw;
         const y2 = pad.top + ch - a * ch;
-        i === 0 ? ctx.moveTo(x2, y2) : ctx.lineTo(x2, y2);
+        if (i === 0) ctx.moveTo(x2, y2); else ctx.lineTo(x2, y2);
       });
       ctx.stroke();
       ctx.setLineDash([]);

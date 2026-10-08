@@ -1,106 +1,73 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { getDatasetPreview } from '../api/client';
 import { useNetworkStore } from '../store/networkStore';
 
-// Same generators as RealTraining.tsx — no server needed
-function makeDataset(name: string, noise: number): [number[][], number[]] {
-  const n = noise / 100;
-  const N = 120;
-  const X: number[][] = [], y: number[] = [];
+type Data = { X: number[][]; y: number[] };
 
-  if (name === 'Circle') {
-    for (let i = 0; i < N; i++) {
-      const angle = Math.random() * 2 * Math.PI;
-      const r = Math.random() < 0.5 ? 0.45 : 0.9;
-      X.push([r * Math.cos(angle) + (Math.random() - .5) * n * 2, r * Math.sin(angle) + (Math.random() - .5) * n * 2]);
-      y.push(r > 0.65 ? 1 : 0);
-    }
-  } else if (name === 'Spiral') {
-    for (let c = 0; c < 2; c++) {
-      for (let i = 0; i < N / 2; i++) {
-        const t = (i / (N / 2)) * 3;
-        const r = t + (Math.random() - .5) * n;
-        const a = t * 2 + c * Math.PI;
-        X.push([r * Math.cos(a), r * Math.sin(a)]);
-        y.push(c);
-      }
-    }
-  } else if (name === 'XOR') {
-    for (let i = 0; i < N; i++) {
-      const a = Math.random() > .5 ? 1 : -1, b = Math.random() > .5 ? 1 : -1;
-      X.push([a + (Math.random() - .5) * n * 2, b + (Math.random() - .5) * n * 2]);
-      y.push(a * b > 0 ? 1 : 0);
-    }
-  } else {
-    for (let i = 0; i < N; i++) {
-      const c = i < N / 2 ? 0 : 1;
-      X.push([(c ? 1 : -1) + (Math.random() - .5) * (n * 2 + .5), (Math.random() - .5) * (n * 2 + .5)]);
-      y.push(c);
-    }
-  }
-  return [X, y];
-}
-
+/**
+ * The exact dataset a Build would train on: the backend generator is
+ * deterministic (fixed seed), so this preview and the model's data agree.
+ */
 export function DatasetPreview() {
-  const { trainingConfig } = useNetworkStore();
+  const dataset = useNetworkStore((s) => s.trainingConfig.dataset);
+  const noise = useNetworkStore((s) => s.trainingConfig.noise);
+  const custom = useNetworkStore((s) => s.customDataset);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [data, setData] = useState<[number[][], number[]] | null>(null);
+  const [fetched, setFetched] = useState<{ key: string; data: Data } | null>(null);
+  const [failed, setFailed] = useState(false);
+  const key = `${dataset}:${noise}`;
 
-  const refresh = useCallback(() => {
-    setData(makeDataset(trainingConfig.dataset, trainingConfig.noise));
-  }, [trainingConfig.dataset, trainingConfig.noise]);
+  useEffect(() => {
+    if (custom) return;
+    let alive = true;
+    getDatasetPreview(useNetworkStore.getState().trainingConfig)
+      .then((d) => { if (alive) { setFetched({ key, data: d }); setFailed(false); } })
+      .catch(() => { if (alive) setFailed(true); });
+    return () => { alive = false; };
+  }, [dataset, noise, custom, key]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  const data: Data | null = useMemo(() => (custom
+    ? { X: custom.X.filter((r) => r.length >= 2), y: custom.y }
+    : fetched?.key === key ? fetched.data : null), [custom, fetched, key]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !data) return;
+    if (!canvas || !data || !data.X.length) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth || 240;
+    const H = canvas.clientHeight || 120;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
     const ctx = canvas.getContext('2d')!;
-    const [X, y] = data;
-    const W = canvas.width, H = canvas.height;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-
-    const xs = X.map(p => p[0]), ys = X.map(p => p[1]);
-    const xMin = Math.min(...xs) - .2, xMax = Math.max(...xs) + .2;
-    const yMin = Math.min(...ys) - .2, yMax = Math.max(...ys) + .2;
-    const toCanv = (px: number, py: number) => [
-      ((px - xMin) / (xMax - xMin)) * W,
-      H - ((py - yMin) / (yMax - yMin)) * H,
-    ] as [number, number];
-
-    // Grid
-    ctx.strokeStyle = 'rgba(55,65,81,0.3)'; ctx.lineWidth = .5;
-    for (let i = 0; i <= 4; i++) {
-      const x = (i / 4) * W; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-      const y2 = (i / 4) * H; ctx.beginPath(); ctx.moveTo(0, y2); ctx.lineTo(W, y2); ctx.stroke();
-    }
-
-    // Points
-    X.forEach((p, i) => {
-      const [cx, cy] = toCanv(p[0], p[1]);
+    const xs = data.X.map((p) => p[0]);
+    const ys = data.X.map((p) => p[1]);
+    const pad = 8;
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const sx = (v: number) => pad + ((v - x0) / (x1 - x0 || 1)) * (W - 2 * pad);
+    const sy = (v: number) => H - pad - ((v - y0) / (y1 - y0 || 1)) * (H - 2 * pad);
+    data.X.forEach((p, i) => {
       ctx.beginPath();
-      ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
-      ctx.fillStyle = y[i] === 1 ? 'rgba(59,130,246,0.85)' : 'rgba(239,68,68,0.85)';
+      ctx.arc(sx(p[0]), sy(p[1]), 2.4, 0, Math.PI * 2);
+      ctx.fillStyle = data.y[i] === 1 ? 'rgba(59,130,246,0.9)' : 'rgba(239,68,68,0.9)';
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = .5; ctx.stroke();
     });
   }, [data]);
 
   return (
-    <div className="rounded-xl border p-2" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-          {trainingConfig.dataset} · noise {trainingConfig.noise}%
-        </span>
-        <button onClick={refresh} className="p-1 rounded hover:opacity-70 transition-opacity" title="Resample">
-          <RefreshCw size={11} style={{ color: 'var(--text-faint)' }} />
-        </button>
-      </div>
-      <canvas ref={canvasRef} width={240} height={140} className="w-full rounded-lg" />
-      <div className="flex gap-3 mt-1.5 text-xs justify-center" style={{ color: 'var(--text-faint)' }}>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />Class 1</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />Class 0</span>
-      </div>
-    </div>
+    <figure className="rounded-md border p-2 m-0" style={{ borderColor: 'var(--border)', background: 'var(--bg-base)' }}>
+      {failed && !custom ? (
+        <p className="text-[11px] py-6 text-center" style={{ color: 'var(--text-faint)' }}>Preview needs the backend (port 8000).</p>
+      ) : (
+        <canvas ref={canvasRef} className="w-full block" style={{ height: 112 }} role="img"
+          aria-label={custom ? 'Scatter plot of the uploaded dataset (first two features)' : `Scatter plot of the ${dataset} dataset`} />
+      )}
+      <figcaption className="flex items-center gap-3 mt-1 text-[11px]" style={{ color: 'var(--text-faint)' }}>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ background: '#ef4444' }} />class 0</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ background: '#3b82f6' }} />class 1</span>
+        <span className="ml-auto tnum">{data ? `${data.X.length} samples` : '…'}{custom ? ' · CSV' : ''}</span>
+      </figcaption>
+    </figure>
   );
 }

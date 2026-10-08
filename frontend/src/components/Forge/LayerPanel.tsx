@@ -65,7 +65,7 @@ export function LayerPanel({ l }: { l: LayerInspection }) {
           })}
         </div>
         {l.never_active.length > 0 && (
-          <p className="text-[10px] mt-1.5" style={{ color: '#fca5a5' }}>
+          <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-neg)' }}>
             Dashed: {l.never_active.length} neuron(s) output 0 for every sample in the dataset.
           </p>
         )}
@@ -81,9 +81,9 @@ export function LayerPanel({ l }: { l: LayerInspection }) {
             height={Math.min(220, Math.max(60, l.size * 7))}
           />
           <div className="flex justify-between text-[10px] mt-1" style={{ color: 'var(--text-faint)' }}>
-            <span style={{ color: '#fca5a5' }}>−{fmt(wMax, 2)}</span>
+            <span style={{ color: 'var(--text-neg)' }}>−{fmt(wMax, 2)}</span>
             <span>0</span>
-            <span style={{ color: '#6ee7b7' }}>+{fmt(wMax, 2)}</span>
+            <span style={{ color: 'var(--text-pos)' }}>+{fmt(wMax, 2)}</span>
           </div>
           {l.weight_histogram && <MiniHistogram hist={l.weight_histogram} color="#a78bfa" height={40} />}
         </Section>

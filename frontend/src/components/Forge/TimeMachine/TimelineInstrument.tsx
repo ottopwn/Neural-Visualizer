@@ -277,7 +277,7 @@ export function TimelineInstrument({ lab, compact = false }: { lab: boolean; com
   );
 }
 
-const btn = 'p-1.5 rounded-md border transition-colors disabled:opacity-35 disabled:cursor-not-allowed hover:bg-white/5';
+const btn = 'p-1.5 rounded-md border transition-colors disabled:opacity-35 disabled:cursor-not-allowed hover:bg-[var(--bg-hover)]';
 
 /** Transport: first / back / play-pause / forward / live, speed and axis mode. */
 export function Transport({ compact = false }: { compact?: boolean }) {

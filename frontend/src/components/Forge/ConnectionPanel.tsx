@@ -21,10 +21,10 @@ export function ConnectionPanel({ c, structure }: { c: ConnectionInspection; str
   return (
     <div className="space-y-2.5">
       <div className="flex items-center gap-2 text-xs">
-        <button type="button" className="font-mono px-2 py-1 rounded border hover:bg-white/5" style={{ borderColor: 'var(--border-soft)' }}
+        <button type="button" className="font-mono px-2 py-1 rounded border hover:bg-[var(--bg-hover)]" style={{ borderColor: 'var(--border-soft)' }}
           onClick={() => select({ kind: 'neuron', layer: c.layer - 1, index: c.source })}>{c.source_name}</button>
         <span style={{ color: 'var(--text-faint)' }}>── w ──▶</span>
-        <button type="button" className="font-mono px-2 py-1 rounded border hover:bg-white/5" style={{ borderColor: 'var(--border-soft)' }}
+        <button type="button" className="font-mono px-2 py-1 rounded border hover:bg-[var(--bg-hover)]" style={{ borderColor: 'var(--border-soft)' }}
           onClick={() => select({ kind: 'neuron', layer: c.layer, index: c.target })}>{c.target_name}</button>
       </div>
 
@@ -40,10 +40,10 @@ export function ConnectionPanel({ c, structure }: { c: ConnectionInspection; str
         <KV k="source output a" v={fmt(c.source_value, 4)} />
         <KV k={c.original_weight !== null ? 'weight w (edited)' : 'weight w'} v={fmtSigned(c.weight, 4)}
           color={c.original_weight !== null ? '#f59e0b' : undefined} />
-        <KV k="contribution w·a" v={fmtSigned(c.contribution, 4)} color={c.contribution >= 0 ? '#6ee7b7' : '#fca5a5'} />
+        <KV k="contribution w·a" v={fmtSigned(c.contribution, 4)} color={c.contribution >= 0 ? 'var(--text-pos)' : 'var(--text-neg)'} />
         <KV k={`share of ${c.target_name}'s input`} v={pct(c.share_of_input, 1)} />
         <KV k="rank among inputs" v={`${c.rank} / ${c.fan_in}`} />
-        <KV k={`${c.target_name} z`} v={fmt(c.target_pre_activation, 4)} color="#93c5fd" />
+        <KV k={`${c.target_name} z`} v={fmt(c.target_pre_activation, 4)} color="var(--text-info)" />
       </Section>
 
       {lab && (
@@ -74,7 +74,7 @@ export function ConnectionPanel({ c, structure }: { c: ConnectionInspection; str
             onClick={() => addIntervention({ type: 'set_weight', layer: c.layer, source: c.source, target: c.target, value: 0 })}
             disabled={c.weight === 0}
             className="w-full flex items-center justify-center gap-1.5 text-xs py-1.5 rounded-lg border disabled:opacity-40"
-            style={{ borderColor: 'rgba(239,68,68,0.5)', color: '#fca5a5', background: 'rgba(239,68,68,0.08)' }}
+            style={{ borderColor: 'rgba(239,68,68,0.5)', color: 'var(--text-neg)', background: 'rgba(239,68,68,0.08)' }}
           >
             <Scissors size={12} /> Cut this connection (w = 0)
           </button>

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useTheme } from '../../contexts/theme';
 import { loadPlotly } from '../../lib/plotly';
 import type { TrainingResult } from '../../types';
 
@@ -8,12 +9,18 @@ interface Props {
 
 export function TrainingCurve({ data }: Props) {
   const divRef = useRef<HTMLDivElement>(null);
+  const { theme } = useTheme();
 
   useEffect(() => {
     if (!divRef.current) return;
     if (!data) return;
 
     const el = divRef.current;
+    const css = (name: string, fallback: string) => getComputedStyle(el).getPropertyValue(name).trim() || fallback;
+    const muted = css('--text-muted', '#9ca3af');
+    const grid = css('--border', '#1f2937');
+    const card = css('--bg-card', '#111827');
+    const text = css('--text-primary', '#e2e8f0');
     let cancelled = false;
     loadPlotly().then((Plotly) => {
       if (cancelled) return;
@@ -24,7 +31,7 @@ export function TrainingCurve({ data }: Props) {
         x: data.epochs,
         y: data.loss_history,
         name: 'Loss',
-        line: { color: '#ef4444', width: 2.5, shape: 'spline', smoothing: 1.2 },
+        line: { color: '#ef4444', width: 2.5, shape: 'linear' },
         marker: { color: '#ef4444', size: 6, symbol: 'circle' },
         fill: 'tozeroy',
         fillcolor: 'rgba(239,68,68,0.08)',
@@ -37,7 +44,7 @@ export function TrainingCurve({ data }: Props) {
         y: data.accuracy_history,
         name: 'Accuracy',
         yaxis: 'y2',
-        line: { color: '#10b981', width: 2.5, shape: 'spline', smoothing: 1.2 },
+        line: { color: '#10b981', width: 2.5, shape: 'linear' },
         marker: { color: '#10b981', size: 6, symbol: 'diamond' },
       };
 
@@ -46,31 +53,31 @@ export function TrainingCurve({ data }: Props) {
         plot_bgcolor: 'rgba(0,0,0,0)',
         margin: { t: 30, r: 60, b: 50, l: 50 },
         xaxis: {
-          title: { text: 'Epoch', font: { color: '#6b7280', size: 12 } },
-          tickfont: { color: '#9ca3af', size: 10 },
-          gridcolor: '#1f2937',
-          zerolinecolor: '#374151',
+          title: { text: 'Epoch', font: { color: muted, size: 12 } },
+          tickfont: { color: muted, size: 11 },
+          gridcolor: grid,
+          zerolinecolor: grid,
         },
         yaxis: {
           title: { text: 'Loss', font: { color: '#ef4444', size: 12 } },
-          tickfont: { color: '#9ca3af', size: 10 },
-          gridcolor: '#1f2937',
-          zerolinecolor: '#374151',
+          tickfont: { color: muted, size: 11 },
+          gridcolor: grid,
+          zerolinecolor: grid,
           rangemode: 'tozero',
         },
         yaxis2: {
           title: { text: 'Accuracy', font: { color: '#10b981', size: 12 } },
-          tickfont: { color: '#9ca3af', size: 10 },
+          tickfont: { color: muted, size: 11 },
           overlaying: 'y',
           side: 'right',
           range: [0, 1.05],
           showgrid: false,
         },
         legend: {
-          bgcolor: 'rgba(17,24,39,0.8)',
-          bordercolor: '#374151',
+          bgcolor: card,
+          bordercolor: grid,
           borderwidth: 1,
-          font: { color: '#d1d5db', size: 11 },
+          font: { color: text, size: 11 },
           x: 0.5,
           xanchor: 'center',
           y: 1.05,
@@ -79,9 +86,9 @@ export function TrainingCurve({ data }: Props) {
         font: { family: 'Inter, system-ui, sans-serif' },
         hovermode: 'x unified',
         hoverlabel: {
-          bgcolor: '#111827',
-          bordercolor: '#374151',
-          font: { color: '#e2e8f0', size: 12 },
+          bgcolor: card,
+          bordercolor: grid,
+          font: { color: text, size: 12 },
         },
       };
 
@@ -91,7 +98,7 @@ export function TrainingCurve({ data }: Props) {
       });
     });
     return () => { cancelled = true; };
-  }, [data]);
+  }, [data, theme]);
 
   if (!data) {
     return (
