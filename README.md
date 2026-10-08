@@ -42,9 +42,10 @@ not computed from your model are labelled **ILLUSTRATIVE** or **SYNTHETIC**.
 | **What-if** | Disable a neuron, cut a connection, set a weight or bias. Applied as an overlay to the forward pass (stored weights never change): original vs after probabilities, dataset accuracy, fraction of flipped predictions, decision regions before/after. Undo / Reset / Restore. |
 | **Time Machine** | Every training epoch is an immutable checkpoint. Scrub, step, play, rewind; per-epoch decision regions and mistakes; the selected neuron through time; A ↔ B epoch comparison; training health (Lab). |
 | **Forward / Backward** | One probe, step by step. Forward: input → `z = W·a + b` → activation → … → logits → softmax → prediction, with every term of every weighted sum. Backward: loss → `dL/dlogits = p − y` → `dL/dW = δ⊗a` → `Wᵀ·δ` → `δ = dL/da ⊙ f′(z)` → input saliency, `−η·dL/dw`, and a real one-step SGD preview. *Compare with epoch* shows the same pass at another checkpoint. |
-| **3D** | The real network in 3D: instanced neurons, batched connections coloured by signal `w·a`, weights or gradients; follows the forward/backward pass with pulses on the strongest real terms; historical checkpoints and what-if edits; orbit / pan / zoom / fit / focus. When not every connection is drawn, it says so ("Showing 600 of 1,152 connections — the strongest by \|w·a\|"). |
+| **3D** | The real network in 3D: instanced neurons, batched connections coloured by signal `w·a`, weights or gradients; follows the forward/backward pass with pulses on the strongest real terms; historical checkpoints and what-if edits; orbit / pan / zoom / fit / focus, fullscreen, a layer-by-layer fly-through, a neuron card with its real inputs × weights, bias, z, activation and δ, Low / Medium / High quality, and an optional aesthetic layer (glow halos sized by the same real |value| as the sphere colour, depth fog). When not every connection is drawn, it says so ("Showing 600 of 1,152 connections — the strongest by \|w·a\|"). |
 | **Transformer Lab** | A tiny real Transformer (2 layers × 2 heads, d = 32, 28.5k parameters) trained locally on template sentences: tokens, embeddings, per-head Q / K / V, scaled scores, causal mask, softmax attention, residual stream, MLP, next-token probabilities, and head ablation. **It is not GPT, ChatGPT or Claude.** |
 | **Analysis** | Secondary views, each tagged REAL / ILLUSTRATIVE / SYNTHETIC / TOOL: training curves, decision boundary, a real filter-normalised loss landscape of your model, weight histograms, layer activations, step animations, in-browser TF.js tools, architecture comparison, PyTorch/Keras code export. |
+| **Home** | Three paths — Explore, Learn (the guided tour), Laboratory — next to a live, freshly initialised real PyTorch network (colours = its real signal; the flowing motion is labelled decorative). |
 | **Demos & Present** | A first-run welcome with one-click demos and a 10-step presentation journey. They drive the real application (build, train, rewind, select, disable, explore) and narrate the resulting real numbers. |
 
 **Two experiences.** *Explore* (the default for new visitors) is a three-step path for beginners — build a network,
@@ -143,7 +144,7 @@ laptop CPU) once per backend process.
 cd backend  && python -m pytest -q          # 74 tests: numerics vs independent autograd, training, API
 cd frontend && npm test                     # 84 unit tests (stores, explorer/3D helpers on a real trace)
 cd frontend && npm run lint && npm run typecheck && npm run build
-cd frontend && npx playwright install chromium && npm run test:e2e   # 13 browser tests (start both servers)
+cd frontend && npx playwright install chromium && npm run test:e2e   # 15 browser tests (start both servers)
 ```
 
 GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs all of the above on every push and pull request.

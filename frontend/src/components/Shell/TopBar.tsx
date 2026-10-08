@@ -47,7 +47,7 @@ export function TopBar({ onDemo, onPresent, availableModes }: Props) {
   const lab = experience === 'lab';
 
   return (
-    <header className="flex items-center gap-3 px-3 h-12 flex-shrink-0 border-b"
+    <header className="app-topbar flex items-center gap-3 px-3 h-12 flex-shrink-0 border-b"
       style={{ borderColor: 'var(--border)', background: 'var(--bg-sidebar)' }}>
       {lab && (
         <button type="button" className="btn-ghost p-1.5" aria-label={leftOpen ? t.topbar.hideExperiment : t.topbar.showExperiment}

@@ -359,6 +359,21 @@ running one real what-if comparison per hidden neuron and keeping the largest ac
   mistakes) and the what-if engine (`mostDamagingNeuron`, `ablate_neuron`). Choosing any Laboratory instrument
   (`setMode`, used by demos, the tour and Explore's "go deeper" buttons) switches to `lab`, keeping the same model.
 
+## 18. Home, visual layer and immersive 3D (Neural Forge 2.0, M2)
+
+- **Home** (`components/Shell/Welcome.tsx`, `LiveNetwork.tsx`): a full-screen landing with Explore / Learn /
+  Laboratory and the one-click demos. The hero creates one small dedicated session per page load (2→6→6→2, Tanh,
+  untrained) and draws its real trace: node fill = activation, edge colour/width = w·a on sample 0. The dashed
+  flow animation is decorative and the caption says so. The dedicated session occupies one slot of the backend's
+  8-session LRU; the user's session is never replaced.
+- **Design layer**: gradient primary buttons, glass overlays, accent line under the top bar, Explore and Home
+  component classes in `index.css`. Paper theme keeps working through the same tokens.
+- **3D** (`ThreeD/Scene.tsx`, `Forge3DView.tsx`): quality presets (`nf-3d-quality`: DPR, sphere detail,
+  antialiasing), an aesthetic toggle (`nf-3d-fx`) for additive glow halos (custom shader; radius and brightness
+  ∝ |value| / layer max of the quantity the spheres already encode, never new data) and depth fog, fullscreen
+  (Fullscreen API on the view), a fly-through that focuses each layer in turn, and a neuron card listing the
+  strongest real terms w·a, bias, z, a and δ from the computation trace.
+
 ## Tests
 
 ```bash

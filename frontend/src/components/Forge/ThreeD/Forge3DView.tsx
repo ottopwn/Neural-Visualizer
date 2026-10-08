@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber';
-import { Box, Crosshair, Focus, Maximize2, Pause, Play, RotateCcw, StepBack, StepForward } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Box, Crosshair, Expand, Focus, Maximize2, Minimize, Pause, Play, Plane, RotateCcw, Sparkles, StepBack, StepForward } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useTheme } from '../../../contexts/theme';
 import { useExplorer } from '../../../forge/explorer';
@@ -14,7 +14,8 @@ import { useForgeStore } from '../../../forge/store';
 import { NeedsModel } from '../../Workspaces/EmptyState';
 import { useElementSize } from '../hooks';
 import { ModelStrip } from '../../Workspaces/NetworkWorkspace';
-import { Scene, type CameraGoal, type Hover, type Palette } from './Scene';
+import { Scene, type CameraGoal, type Hover, type Palette, type Quality } from './Scene';
+import { useT } from '../../../i18n';
 
 const FOV = 42;
 const LIMITS = [100, 300, 600, 1500, 5000, Infinity];
@@ -56,6 +57,63 @@ function useReducedMotion(): boolean {
 
 type PassMode = 'off' | 'forward' | 'backward';
 
+function stored<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+  try {
+    const v = localStorage.getItem(key);
+    if (v && (allowed as readonly string[]).includes(v)) return v as T;
+  } catch { /* storage unavailable */ }
+  return fallback;
+}
+function store(key: string, v: string) {
+  try { localStorage.setItem(key, v); } catch { /* storage unavailable */ }
+}
+const QUALITIES: Quality[] = ['low', 'medium', 'high'];
+const DPR: Record<Quality, [number, number]> = { low: [1, 1], medium: [1, 1.5], high: [1, 2] };
+const FLY_STEP_MS = 1700;
+
+/** Real values of one neuron, read from the trace: the in-3D neuron card. */
+function NeuronCard({ trace, layer, index, names, disabled }: {
+  trace: NonNullable<ReturnType<typeof useForgeStore.getState>['trace']>; layer: number; index: number; names: string[][]; disabled: boolean;
+}) {
+  const t = useT().three.card;
+  const last = trace.layers.length;
+  const row = (k: string, v: string, color?: string) => (
+    <div className="flex items-baseline justify-between gap-4"><span style={{ color: 'var(--text-faint)' }}>{k}</span><span className="font-mono" style={{ color: color ?? 'var(--text-primary)' }}>{v}</span></div>
+  );
+  if (layer === 0) {
+    return (
+      <div className="space-y-0.5">
+        <div className="text-[10.5px] uppercase tracking-wider" style={{ color: 'var(--text-faint)' }}>{t.input}</div>
+        {row(t.value, fmt(trace.input[index], 4))}
+        {row(t.gradIn, fmtSigned(trace.grad_input[index], 4))}
+      </div>
+    );
+  }
+  const d = trace.layers[layer - 1];
+  const terms = d.weight[index].map((w, j) => ({ j, w, a: d.input[j], v: w * d.input[j] }))
+    .sort((p, q) => Math.abs(q.v) - Math.abs(p.v)).slice(0, 5);
+  return (
+    <div className="space-y-0.5">
+      <div className="text-[10.5px] uppercase tracking-wider" style={{ color: 'var(--text-faint)' }}>
+        {layer === last ? t.output : t.hidden} · {d.activation}{disabled && <span style={{ color: 'var(--text-warn)' }}> · {t.off}</span>}
+      </div>
+      <div className="text-[10.5px] mt-1.5 mb-0.5" style={{ color: 'var(--text-faint)' }}>{t.terms}</div>
+      {terms.map((p) => (
+        <div key={p.j} className="flex items-baseline justify-between gap-3 font-mono text-[11px]">
+          <span style={{ color: 'var(--text-muted)' }}>{names[layer - 1]?.[p.j]}</span>
+          <span style={{ color: 'var(--text-faint)' }}>{fmtSigned(p.w, 3)} × {fmt(p.a, 3)}</span>
+          <span style={{ color: p.v >= 0 ? 'var(--text-pos, var(--pos))' : 'var(--text-neg)' }}>{fmtSigned(p.v, 3)}</span>
+        </div>
+      ))}
+      <div className="border-t my-1.5" style={{ borderColor: 'var(--border)' }} />
+      {row(t.bias, fmtSigned(d.bias[index], 4))}
+      {row(t.sum, fmtSigned(d.z[index], 4))}
+      {row(t.out, fmt(d.a[index], 4))}
+      {row(t.delta, fmtSigned(d.grad_z[index], 4))}
+    </div>
+  );
+}
+
 export function Forge3DView() {
   const session = useForgeStore((s) => s.session);
   const trace = useForgeStore((s) => s.trace);
@@ -69,6 +127,23 @@ export function Forge3DView() {
   const [limit, setLimit] = useState(600);
   const [pass, setPass] = useState<PassMode>('off');
   const [hover, setHover] = useState<Hover | null>(null);
+  const t3 = useT().three;
+  const [quality, setQualityState] = useState<Quality>(() => stored('nf-3d-quality', QUALITIES, 'medium'));
+  const [effects, setEffectsState] = useState<boolean>(() => stored('nf-3d-fx', ['on', 'off'] as const, 'on') === 'on');
+  const setQuality = (q: Quality) => { setQualityState(q); store('nf-3d-quality', q); };
+  const setEffects = (on: boolean) => { setEffectsState(on); store('nf-3d-fx', on ? 'on' : 'off'); };
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const on = () => setFullscreen(document.fullscreenElement === rootRef.current && !!rootRef.current);
+    document.addEventListener('fullscreenchange', on);
+    return () => document.removeEventListener('fullscreenchange', on);
+  }, []);
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen?.();
+    else void rootRef.current?.requestFullscreen?.().catch(() => undefined);
+  };
+  const [flying, setFlying] = useState(false);
   const [viewRef, viewSize] = useElementSize<HTMLDivElement>({ w: 900, h: 600 });
   const aspect = viewSize.w / Math.max(1, viewSize.h);
 
@@ -138,6 +213,19 @@ export function Forge3DView() {
 
   const onSelect = useCallback((ref: Parameters<typeof select>[0]) => void select(ref), [select]);
 
+  // Fly-through: focus each layer in turn (input → output), then fit the whole network.
+  useEffect(() => {
+    if (!flying) return;
+    let g = 0; // layer 0 was focused by the click that started the flight
+    const id = setInterval(() => {
+      g += 1;
+      if (g < layout.layerX.length) focusLayer(g);
+      else { setGoal((x) => fitGoal(x.key + 1)); setFlying(false); }
+    }, reduceMotion ? 600 : FLY_STEP_MS);
+    return () => clearInterval(id);
+  }, [flying, focusLayer, layout, fitGoal, reduceMotion]);
+  const fogDist = fitDistance(layout.radius, FOV, aspect);
+
   if (!session) {
     return (
       <NeedsModel icon={<Box size={20} />} view='3d' />
@@ -161,8 +249,8 @@ export function Forge3DView() {
   }
 
   return (
-    <div className="h-full flex flex-col min-h-0">
-      <ModelStrip />
+    <div className="h-full flex flex-col min-h-0" ref={rootRef} style={{ background: 'var(--bg-base)' }}>
+      {!fullscreen && <ModelStrip />}
       <div className="flex items-center gap-2 flex-wrap px-3 py-2 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
         <div className="seg" role="group" aria-label="Colour by">
           {COLOR_MODES.map((m) => (
@@ -197,6 +285,27 @@ export function Forge3DView() {
         </div>
       </div>
 
+      <div className="flex items-center gap-2 flex-wrap px-3 py-1.5 border-b flex-shrink-0 text-[12px]" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+        <button type="button" className={flying ? 'btn-primary !py-1 !px-2.5 !text-xs' : 'btn-secondary !py-1 !px-2.5 !text-xs'} onClick={() => { if (!flying) focusLayer(0); setFlying(!flying); }} title={t3.flyHint}>
+          <Plane size={13} />{flying ? t3.flyStop : t3.fly}
+        </button>
+        <button type="button" className="btn-secondary !py-1 !px-2.5 !text-xs" onClick={toggleFullscreen} aria-pressed={fullscreen}>
+          {fullscreen ? <Minimize size={13} /> : <Expand size={13} />}{fullscreen ? t3.exitFullscreen : t3.fullscreen}
+        </button>
+        <label className="flex items-center gap-1.5 cursor-pointer" title={t3.effectsHint}>
+          <input type="checkbox" checked={effects} onChange={(e) => setEffects(e.target.checked)} />
+          <Sparkles size={13} />{t3.effects}
+        </label>
+        <span className="ml-auto flex items-center gap-1.5">
+          {t3.quality}
+          <span className="seg" role="group" aria-label={t3.quality}>
+            {QUALITIES.map((q) => (
+              <button key={q} type="button" aria-pressed={quality === q} onClick={() => setQuality(q)}>{t3.qualities[q]}</button>
+            ))}
+          </span>
+        </span>
+      </div>
+
       <div className="flex items-center gap-x-4 gap-y-1 flex-wrap px-3 py-1.5 border-b text-[12px] flex-shrink-0" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }} data-testid="3d-legend">
         <span className="flex items-center gap-2">
           <span className="badge-green">REAL</span>
@@ -212,13 +321,15 @@ export function Forge3DView() {
 
       <div className="flex-1 min-h-0 relative" data-testid="forge-3d" ref={viewRef}>
         {trace && (
-          <Canvas camera={{ fov: FOV, position: goal.position, near: 0.1, far: 1000 }} dpr={[1, 2]}
+          <Canvas key={quality} camera={{ fov: FOV, position: goal.position, near: 0.1, far: 1000 }} dpr={DPR[quality]}
+            gl={{ antialias: quality !== 'low' }}
             raycaster={{ params: { Line: { threshold: 0.12 } } as THREE.Raycaster['params'] }}
             onPointerMissed={() => setHover(null)} aria-label="3D view of the real network">
             <Scene layout={layout} sizes={sizes} names={names} layerLabels={labels} nodeVals={nodeVals} dimmed={dimmed}
               ablated={ablated} edges={edges} shown={sel.shown} emphasised={sel.emphasised} pulses={pulses}
               pulseDir={pass === 'backward' ? -1 : 1} palette={palette} selection={selection} goal={goal}
-              reduceMotion={reduceMotion} onSelect={onSelect} onFocusLayer={focusLayer} onHover={setHover} />
+              reduceMotion={reduceMotion} onSelect={onSelect} onFocusLayer={focusLayer} onHover={setHover}
+              quality={quality} effects={effects} fogRange={[fogDist * 0.7, fogDist * 2.1]} />
           </Canvas>
         )}
 
@@ -244,11 +355,13 @@ export function Forge3DView() {
           <span style={{ color: 'var(--text-faint)' }}>drag rotate · right-drag pan · scroll zoom · click select · double-click focus</span>
         </div>
 
-        {selection && trace && selection.kind === 'neuron' && (
-          <div className="overlay absolute top-3 right-3 px-3 py-2 text-[12px] tnum" style={{ color: 'var(--text-muted)' }}>
-            <b style={{ color: 'var(--text-primary)' }}>{names[selection.layer]?.[selection.index]}</b>
-            {selection.layer > 0 && <> · z {fmt(trace.layers[selection.layer - 1].z[selection.index], 3)} · a {fmt(trace.layers[selection.layer - 1].a[selection.index], 3)} · δ {fmtSigned(trace.layers[selection.layer - 1].grad_z[selection.index], 3)}</>}
-            {selection.layer === 0 && <> · x {fmt(trace.input[selection.index], 3)} · dL/dx {fmtSigned(trace.grad_input[selection.index], 3)}</>}
+        {selection && trace && selection.kind === 'neuron' && names[selection.layer]?.[selection.index] !== undefined && (
+          <div className="overlay absolute top-3 right-3 z-20 px-3 py-2.5 text-[12px] tnum w-[280px]" data-testid="neuron-card">
+            <div className="flex items-center gap-2 mb-1">
+              <b className="text-[14px]" style={{ color: 'var(--text-primary)' }}>{names[selection.layer][selection.index]}</b>
+              <span className="badge-green ml-auto">REAL</span>
+            </div>
+            <NeuronCard trace={trace} layer={selection.layer} index={selection.index} names={names} disabled={ablated.has(`${selection.layer}:${selection.index}`)} />
           </div>
         )}
       </div>

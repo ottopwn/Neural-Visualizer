@@ -20,6 +20,10 @@ export interface Hover { kind: 'neuron' | 'edge'; layer: number; index: number; 
 
 export interface CameraGoal { position: Vec3; target: Vec3; key: number }
 
+/** Rendering quality: geometry detail and whether the (aesthetic) glow is drawn. */
+export type Quality = 'low' | 'medium' | 'high';
+const SPHERE_DETAIL: Record<Quality, [number, number]> = { low: [10, 8], medium: [20, 14], high: [32, 24] };
+
 interface SceneProps {
   layout: Layout;
   sizes: number[];
@@ -40,6 +44,11 @@ interface SceneProps {
   onSelect: (ref: ComponentRef) => void;
   onFocusLayer: (layer: number) => void;
   onHover: (h: Hover | null) => void;
+  quality: Quality;
+  /** Aesthetic layer: glow halos and depth fog. Never changes what a value means. */
+  effects: boolean;
+  /** [near, far] of the depth fog (camera-distance based). */
+  fogRange: [number, number];
 }
 
 const tmpObj = new THREE.Object3D();
@@ -58,8 +67,8 @@ function layerMax(values: number[]): number {
   return m;
 }
 
-function Nodes({ layout, sizes, nodeVals, dimmed, ablated, palette, onSelect, onHover, focusNeuron }: Pick<SceneProps,
-  'layout' | 'sizes' | 'nodeVals' | 'dimmed' | 'ablated' | 'palette' | 'onSelect' | 'onHover'> & { focusNeuron: (l: number, i: number) => void }) {
+function Nodes({ layout, sizes, nodeVals, dimmed, ablated, palette, onSelect, onHover, focusNeuron, quality }: Pick<SceneProps,
+  'layout' | 'sizes' | 'nodeVals' | 'dimmed' | 'ablated' | 'palette' | 'onSelect' | 'onHover' | 'quality'> & { focusNeuron: (l: number, i: number) => void }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   const flat = useMemo(() => sizes.flatMap((n, g) => Array.from({ length: n }, (_, i) => [g, i] as const)), [sizes]);
   const count = flat.length;
@@ -93,8 +102,65 @@ function Nodes({ layout, sizes, nodeVals, dimmed, ablated, palette, onSelect, on
       onDoubleClick={(e) => { e.stopPropagation(); const r = resolve(e); if (r) focusNeuron(r[0], r[1]); }}
       onPointerMove={(e) => { e.stopPropagation(); const r = resolve(e); if (r) onHover({ kind: 'neuron', layer: r[0], index: r[1], x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY }); }}
       onPointerOut={() => onHover(null)}>
-      <sphereGeometry args={[0.24, 20, 14]} />
-      <meshStandardMaterial roughness={0.55} metalness={0.05} />
+      <sphereGeometry args={[0.24, ...SPHERE_DETAIL[quality]]} />
+      <meshStandardMaterial roughness={quality === 'high' ? 0.35 : 0.55} metalness={0.05} />
+    </instancedMesh>
+  );
+}
+
+/** Soft halo: brightest facing the camera, fading to nothing at the rim (additive). */
+const glowMaterial = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  vertexShader: `
+    varying vec3 vColor;
+    varying float vI;
+    void main() {
+      vColor = instanceColor;
+      vec4 mv = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+      vec3 n = normalize(normalMatrix * mat3(instanceMatrix) * normal);
+      vI = pow(max(dot(n, normalize(-mv.xyz)), 0.0), 3.0);
+      gl_Position = projectionMatrix * mv;
+    }`,
+  fragmentShader: `
+    varying vec3 vColor;
+    varying float vI;
+    void main() { gl_FragColor = vec4(vColor * vI * 0.9, 1.0); }`,
+});
+
+/**
+ * Additive halo around each neuron.  Its radius and brightness are
+ * proportional to |value| / layer max of the quantity the spheres show, so the
+ * glow reads the same real number as the sphere colour; it adds no data.
+ */
+function Glow({ layout, sizes, nodeVals, dimmed, ablated, palette }: Pick<SceneProps, 'layout' | 'sizes' | 'nodeVals' | 'dimmed' | 'ablated' | 'palette'>) {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const flat = useMemo(() => sizes.flatMap((n, g) => Array.from({ length: n }, (_, i) => [g, i] as const)), [sizes]);
+  useLayoutEffect(() => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    const maxes = nodeVals.map(layerMax);
+    flat.forEach(([g, i], k) => {
+      const p = layout.positions[g][i];
+      const v = nodeVals[g]?.[i] ?? 0;
+      const t = maxes[g] > 0 ? Math.min(1, Math.abs(v) / maxes[g]) : 0;
+      const off = ablated.has(`${g}:${i}`) || dimmed[g];
+      tmpObj.position.set(p[0], p[1], p[2]);
+      tmpObj.scale.setScalar(off ? 0.0001 : 0.35 + 1.25 * t);
+      tmpObj.updateMatrix();
+      mesh.setMatrixAt(k, tmpObj.matrix);
+      tmpColor.copy(v >= 0 ? palette.pos : palette.neg).multiplyScalar(0.15 + 0.85 * t);
+      mesh.setColorAt(k, tmpColor);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.computeBoundingSphere();
+  }, [flat, layout, nodeVals, dimmed, ablated, palette]);
+  return (
+    <instancedMesh key={flat.length} ref={ref} args={[undefined, undefined, flat.length]} raycast={() => null} renderOrder={-1}>
+      <sphereGeometry args={[0.6, 24, 16]} />
+      <primitive object={glowMaterial} attach="material" />
     </instancedMesh>
   );
 }
@@ -252,13 +318,15 @@ function CameraRig({ goal, reduceMotion }: { goal: CameraGoal; reduceMotion: boo
 }
 
 export function Scene(props: SceneProps) {
-  const { layout, sizes, layerLabels, palette, selection, onSelect, onFocusLayer, goal, reduceMotion } = props;
+  const { layout, sizes, layerLabels, palette, selection, onSelect, onFocusLayer, goal, reduceMotion, quality, effects, fogRange } = props;
+  const paper = palette.bg.r + palette.bg.g + palette.bg.b > 1.5;
   const focusNeuron = (g: number, i: number) => {
     onSelect({ kind: 'neuron', layer: g, index: i });
   };
   return (
     <>
       <color attach="background" args={[palette.bg]} />
+      {effects && <fog attach="fog" args={[palette.bg, fogRange[0], fogRange[1]]} />}
       <ambientLight intensity={0.75} />
       <directionalLight position={[6, 10, 8]} intensity={1.4} />
       <directionalLight position={[-8, -4, -6]} intensity={0.35} />
@@ -266,7 +334,10 @@ export function Scene(props: SceneProps) {
       <EdgeLines layout={layout} edges={props.edges} shown={props.shown} palette={palette} onSelect={onSelect} onHover={props.onHover} />
       <Emphasised layout={layout} edges={props.edges} emphasised={props.emphasised} palette={palette} />
       <Nodes layout={layout} sizes={sizes} nodeVals={props.nodeVals} dimmed={props.dimmed} ablated={props.ablated}
-        palette={palette} onSelect={onSelect} onHover={props.onHover} focusNeuron={focusNeuron} />
+        palette={palette} onSelect={onSelect} onHover={props.onHover} focusNeuron={focusNeuron} quality={quality} />
+      {effects && quality !== 'low' && !paper && (
+        <Glow layout={layout} sizes={sizes} nodeVals={props.nodeVals} dimmed={props.dimmed} ablated={props.ablated} palette={palette} />
+      )}
       <Pulses layout={layout} edges={props.edges} pulses={props.pulses} pulseDir={props.pulseDir} palette={palette} reduceMotion={reduceMotion} />
       <SelectionMarks layout={layout} selection={selection} sizes={sizes} palette={palette} ablated={props.ablated} />
 

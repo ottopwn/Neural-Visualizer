@@ -1,13 +1,15 @@
-import { ArrowRight, Compass, Loader2, MonitorPlay, X } from 'lucide-react';
+import { ArrowRight, Compass, FlaskConical, Languages, Loader2, MonitorPlay, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { DEMOS, JOURNEY, useGuide, usePresentation } from '../../app/demos';
+import { DEMOS, useGuide, usePresentation } from '../../app/demos';
 import { useWorkspace } from '../../app/workspace';
 import { BrandMark } from './TopBar';
-import { useT } from '../../i18n';
+import { useI18n, useT } from '../../i18n';
+import { LANGS, type Lang } from '../../i18n/lang';
+import { LiveNetwork } from './LiveNetwork';
 
 export const WELCOME_KEY = 'nf-welcome-seen';
 
-/** First-run welcome and the guided-demo launcher (also opened from the top bar). */
+/** Home: first-run landing (Explore / Learn / Laboratory) and the demo launcher (also opened from the top bar). */
 export function Welcome() {
   const open = useWorkspace((s) => s.welcomeOpen);
   const setOpen = useWorkspace((s) => s.setWelcomeOpen);
@@ -16,6 +18,8 @@ export function Welcome() {
   const start = usePresentation((s) => s.start);
   const setExperience = useWorkspace((s) => s.setExperience);
   const t = useT();
+  const lang = useI18n((s) => s.lang);
+  const setLang = useI18n((s) => s.setLang);
   const firstBtn = useRef<HTMLButtonElement>(null);
 
   const close = () => {
@@ -34,67 +38,70 @@ export function Welcome() {
 
   if (!open) return null;
 
+  const choose = (e: 'explore' | 'lab') => { close(); setExperience(e); };
+  const choices = [
+    { key: 'explore', icon: <Compass size={22} />, text: t.home.explore, onClick: () => choose('explore'), primary: true },
+    { key: 'learn', icon: <MonitorPlay size={22} />, text: t.home.learn, onClick: () => { close(); void start(); }, primary: false },
+    { key: 'lab', icon: <FlaskConical size={22} />, text: t.home.lab, onClick: () => choose('lab'), primary: false },
+  ];
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" style={{ background: 'rgba(5,8,12,0.55)' }}
-      onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
-      <div role="dialog" aria-modal="true" aria-labelledby="welcome-title"
-        className="w-full max-w-[880px] max-h-[calc(100vh-48px)] overflow-y-auto rounded-xl border"
-        style={{ background: 'var(--bg-card)', borderColor: 'var(--border-soft)', boxShadow: 'var(--shadow-pop)' }}>
-        <div className="flex items-start gap-4 px-7 pt-7 pb-5 border-b" style={{ borderColor: 'var(--border)' }}>
-          <BrandMark size={40} />
-          <div className="flex-1">
-            <h1 id="welcome-title" className="text-[22px] font-semibold tracking-tight m-0" style={{ color: 'var(--text-primary)' }}>
-              {t.welcome.title}
-            </h1>
-            <p className="mt-1.5 text-[14px] leading-relaxed max-w-[620px]" style={{ color: 'var(--text-muted)' }}>
-              {t.welcome.intro}
-            </p>
+    <div className="fixed inset-0 z-[60] overflow-y-auto home-bg">
+      <div role="dialog" aria-modal="true" aria-labelledby="welcome-title" className="min-h-full max-w-[1240px] mx-auto px-6 py-6 flex flex-col">
+        <div className="flex items-center gap-2.5">
+          <BrandMark size={30} />
+          <span className="text-[15px] font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>{t.home.eyebrow}</span>
+          <div className="ml-auto flex items-center gap-2">
+            <label className="flex items-center gap-1 text-[12px]" style={{ color: 'var(--text-muted)' }}>
+              <Languages size={14} aria-hidden="true" />
+              <select className="select-base !py-1 !pl-1.5 !pr-6 !text-xs !w-auto" aria-label={t.lang.label} value={lang}
+                onChange={(e) => setLang(e.target.value as Lang)}>
+                {LANGS.map((l) => <option key={l} value={l}>{t.lang[l]}</option>)}
+              </select>
+            </label>
+            <button type="button" className="btn-ghost p-1.5" aria-label={t.common.close} onClick={close}><X size={18} /></button>
           </div>
-          <button type="button" className="btn-ghost p-1.5" aria-label={t.common.close} onClick={close}><X size={18} /></button>
         </div>
 
-        <div className="px-7 py-5">
-          <div className="grid gap-2.5 md:grid-cols-2">
-            <button ref={firstBtn} type="button" disabled={!!running}
-              onClick={() => { close(); setExperience('explore'); }}
-              className="w-full text-left rounded-lg border p-4 flex items-center gap-4 transition-colors hover:bg-[var(--bg-hover)]"
-              style={{ borderColor: 'var(--accent)', background: 'var(--bg-active)' }}>
-              <Compass size={24} style={{ color: 'var(--accent)' }} aria-hidden="true" />
-              <span className="flex-1">
-                <span className="block text-[15px] font-semibold" style={{ color: 'var(--text-primary)' }}>{t.welcome.exploreTitle}</span>
-                <span className="block text-[13px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.welcome.exploreBody}</span>
-              </span>
-              <ArrowRight size={18} style={{ color: 'var(--accent)' }} aria-hidden="true" />
-            </button>
-            <button type="button" disabled={!!running}
-              onClick={() => { close(); void start(); }}
-              className="w-full text-left rounded-lg border p-4 flex items-center gap-4 transition-colors hover:bg-[var(--bg-hover)]"
-              style={{ borderColor: 'var(--border-soft)' }}>
-              <MonitorPlay size={24} style={{ color: 'var(--accent)' }} aria-hidden="true" />
-              <span className="flex-1">
-                <span className="block text-[15px] font-semibold" style={{ color: 'var(--text-primary)' }}>{t.welcome.tour(JOURNEY.length)}</span>
-                <span className="block text-[13px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.welcome.tourBody}</span>
-              </span>
-              <ArrowRight size={18} style={{ color: 'var(--accent)' }} aria-hidden="true" />
-            </button>
+        <div className="flex-1 grid gap-8 lg:grid-cols-[1.05fr_1fr] items-center py-8">
+          <div>
+            <h1 id="welcome-title" className="home-title m-0">{t.welcome.title}</h1>
+            <p className="mt-4 text-[15.5px] leading-relaxed max-w-[560px]" style={{ color: 'var(--text-muted)' }}>{t.welcome.intro}</p>
+            <div className="mt-7 grid gap-3">
+              {choices.map((c, i) => (
+                <button key={c.key} ref={i === 0 ? firstBtn : undefined} type="button" disabled={!!running} onClick={c.onClick}
+                  className="home-choice" data-primary={c.primary || undefined}>
+                  <span className="home-choice-icon" aria-hidden="true">{c.icon}</span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[10.5px] font-semibold tracking-[0.14em]" style={{ color: 'var(--accent-text)' }}>{c.text.tag}</span>
+                    <span className="block text-[16px] font-semibold" style={{ color: 'var(--text-primary)' }}>{c.text.title}</span>
+                    <span className="block text-[13px] mt-0.5 leading-snug" style={{ color: 'var(--text-muted)' }}>{c.text.body}</span>
+                  </span>
+                  <ArrowRight size={18} style={{ color: 'var(--accent)' }} aria-hidden="true" />
+                </button>
+              ))}
+            </div>
           </div>
+          <div className="home-stage">
+            <LiveNetwork />
+          </div>
+        </div>
 
-          <div className="eyebrow mt-6 mb-2.5">{t.welcome.jump}</div>
-          <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+        <div>
+          <div className="eyebrow mb-2.5">{t.welcome.jump}</div>
+          <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))' }}>
             {DEMOS.map((d) => (
               <button key={d.id} type="button" disabled={!!running}
                 onClick={() => { close(); void run(d); }}
-                className="text-left rounded-lg border p-3.5 transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
-                style={{ borderColor: 'var(--border-soft)' }}>
+                className="text-left flex flex-col justify-start rounded-xl border p-3.5 transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
+                style={{ borderColor: 'var(--border-soft)', background: 'color-mix(in srgb, var(--bg-card) 70%, transparent)' }}>
                 <span className="block text-[14px] font-semibold" style={{ color: 'var(--text-primary)' }}>{t.demos[d.id].title}</span>
                 <span className="block text-[12.5px] mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>{t.demos[d.id].body}</span>
               </button>
             ))}
           </div>
-          <div className="mt-5 flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-[12px] m-0" style={{ color: 'var(--text-faint)' }}>
-              {t.welcome.realNote}
-            </p>
+          <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-[12px] m-0" style={{ color: 'var(--text-faint)' }}>{t.welcome.realNote}</p>
             <button type="button" className="btn-secondary" onClick={close}>{t.welcome.ownWay}</button>
           </div>
         </div>
