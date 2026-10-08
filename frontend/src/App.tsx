@@ -13,6 +13,7 @@ import { TopBar } from './components/Shell/TopBar';
 import { NetworkWorkspace } from './components/Workspaces/NetworkWorkspace';
 import { onForgeGraph } from './forge/store';
 import { useNetworkStore } from './store/networkStore';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Heavy, secondary workspaces are code-split: Three.js, TensorFlow.js, Plotly
 // and the legacy tools load only when first opened.
@@ -79,20 +80,22 @@ export default function App() {
         {leftOpen && (
           <aside className="w-[272px] flex-shrink-0 border-r min-h-0" aria-label="Experiment"
             style={{ borderColor: 'var(--border)', background: 'var(--bg-sidebar)' }}>
-            <ExperimentPanel />
+            <ErrorBoundary scope="view"><ExperimentPanel /></ErrorBoundary>
           </aside>
         )}
 
         <main id="workspace" className="flex-1 min-w-0 min-h-0" tabIndex={-1}>
-          <Suspense fallback={<Loading />}>
-            <Workspace mode={mode} onCinema={() => setCinemaOpen(true)} />
-          </Suspense>
+          <ErrorBoundary scope="view" resetKey={mode}>
+            <Suspense fallback={<Loading />}>
+              <Workspace mode={mode} onCinema={() => setCinemaOpen(true)} />
+            </Suspense>
+          </ErrorBoundary>
         </main>
 
         {rightOpen && mode !== 'transformer' && (
           <aside className="w-[352px] flex-shrink-0 border-l min-h-0" aria-label="Inspector"
             style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
-            <InspectorPanel />
+            <ErrorBoundary scope="view"><InspectorPanel /></ErrorBoundary>
           </aside>
         )}
       </div>
