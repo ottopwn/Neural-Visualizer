@@ -1,10 +1,12 @@
 import { expect, type Page } from '@playwright/test';
 
-/** Open the app with a theme, skipping the first-run welcome. */
+/** Open the app (English, Lab experience) with a theme, skipping the first-run welcome. */
 export async function open(page: Page, theme: 'dark' | 'paper' = 'dark') {
   await page.addInitScript((t) => {
     localStorage.setItem('nv-theme', t);
     localStorage.setItem('nf-welcome-seen', '1');
+    if (!localStorage.getItem('nf-lang')) localStorage.setItem('nf-lang', 'en');
+    if (!localStorage.getItem('nf-experience')) localStorage.setItem('nf-experience', 'lab');
   }, theme);
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Step inside a real neural network' })).toBeVisible();

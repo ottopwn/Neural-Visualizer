@@ -47,8 +47,17 @@ not computed from your model are labelled **ILLUSTRATIVE** or **SYNTHETIC**.
 | **Analysis** | Secondary views, each tagged REAL / ILLUSTRATIVE / SYNTHETIC / TOOL: training curves, decision boundary, a real filter-normalised loss landscape of your model, weight histograms, layer activations, step animations, in-browser TF.js tools, architecture comparison, PyTorch/Keras code export. |
 | **Demos & Present** | A first-run welcome with one-click demos and a 10-step presentation journey. They drive the real application (build, train, rewind, select, disable, explore) and narrate the resulting real numbers. |
 
-Learn mode explains each view in plain sentences built from the real values; Lab mode shows equations, tensor shapes
-and raw numbers. Dark and Paper (light) themes.
+**Two experiences.** *Explore* (the default for new visitors) is a three-step path for beginners — build a network,
+train it and rewind its training, then find its most important neuron by really switching each one off — on the same
+real PyTorch model. *Laboratory* is the full instrument set above. Inside the Laboratory, the *Learn* level explains
+each view in plain sentences built from the real values; the *Lab* level shows equations, tensor shapes and raw
+numbers. Dark and Paper (light) themes.
+
+**English / Italiano.** The interface is translated natively (selector in the top bar; default from the browser
+language, remembered in `localStorage`). The page opts out of browser auto-translation (`translate="no"`), which used
+to blank the React UI, and error boundaries keep any view crash from taking down the whole app. Not yet translated:
+the detailed scientific explanations inside the Laboratory instruments (Microscope, Pass Explorer, Time Machine
+notes, Transformer Lab), which stay in English.
 
 <table>
 <tr>
@@ -134,7 +143,7 @@ laptop CPU) once per backend process.
 cd backend  && python -m pytest -q          # 74 tests: numerics vs independent autograd, training, API
 cd frontend && npm test                     # 84 unit tests (stores, explorer/3D helpers on a real trace)
 cd frontend && npm run lint && npm run typecheck && npm run build
-cd frontend && npx playwright install chromium && npm run test:e2e   # 9 browser smoke tests (start both servers)
+cd frontend && npx playwright install chromium && npm run test:e2e   # 13 browser tests (start both servers)
 ```
 
 GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs all of the above on every push and pull request.

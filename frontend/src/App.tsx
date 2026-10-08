@@ -14,6 +14,8 @@ import { NetworkWorkspace } from './components/Workspaces/NetworkWorkspace';
 import { onForgeGraph } from './forge/store';
 import { useNetworkStore } from './store/networkStore';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { ExploreView } from './components/Explore/ExploreView';
+import { useT } from './i18n';
 
 // Heavy, secondary workspaces are code-split: Three.js, TensorFlow.js, Plotly
 // and the legacy tools load only when first opened.
@@ -47,6 +49,8 @@ function Workspace({ mode, onCinema }: { mode: WorkspaceMode; onCinema: () => vo
 
 export default function App() {
   const mode = useWorkspace((s) => s.mode);
+  const lab = useWorkspace((s) => s.experience) === 'lab';
+  const t = useT();
   const leftOpen = useWorkspace((s) => s.leftOpen);
   const rightOpen = useWorkspace((s) => s.rightOpen);
   const setWelcomeOpen = useWorkspace((s) => s.setWelcomeOpen);
@@ -73,27 +77,29 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
       <a href="#workspace" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:px-3 focus:py-2 focus:rounded-md"
-        style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>Skip to workspace</a>
+        style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>{t.common.skipToWorkspace}</a>
       <TopBar onDemo={() => setWelcomeOpen(true)} onPresent={() => void startPresentation()} availableModes={available} />
 
       <div className="flex flex-1 min-h-0">
-        {leftOpen && (
-          <aside className="w-[272px] flex-shrink-0 border-r min-h-0" aria-label="Experiment"
+        {lab && leftOpen && (
+          <aside className="w-[272px] flex-shrink-0 border-r min-h-0" aria-label={t.panel.experiment}
             style={{ borderColor: 'var(--border)', background: 'var(--bg-sidebar)' }}>
             <ErrorBoundary scope="view"><ExperimentPanel /></ErrorBoundary>
           </aside>
         )}
 
         <main id="workspace" className="flex-1 min-w-0 min-h-0" tabIndex={-1}>
-          <ErrorBoundary scope="view" resetKey={mode}>
-            <Suspense fallback={<Loading />}>
-              <Workspace mode={mode} onCinema={() => setCinemaOpen(true)} />
-            </Suspense>
+          <ErrorBoundary scope="view" resetKey={lab ? mode : 'explore'}>
+            {lab ? (
+              <Suspense fallback={<Loading />}>
+                <Workspace mode={mode} onCinema={() => setCinemaOpen(true)} />
+              </Suspense>
+            ) : <ExploreView />}
           </ErrorBoundary>
         </main>
 
-        {rightOpen && mode !== 'transformer' && (
-          <aside className="w-[352px] flex-shrink-0 border-l min-h-0" aria-label="Inspector"
+        {lab && rightOpen && mode !== 'transformer' && (
+          <aside className="w-[352px] flex-shrink-0 border-l min-h-0" aria-label={t.topbar.inspector}
             style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
             <ErrorBoundary scope="view"><InspectorPanel /></ErrorBoundary>
           </aside>

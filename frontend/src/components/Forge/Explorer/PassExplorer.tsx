@@ -59,8 +59,7 @@ export function PassExplorer() {
 
   if (!session) {
     return (
-      <NeedsModel icon={<Route size={20} />} title="Follow one input through the network"
-        body={<>Step through the real forward pass (weighted sums, activations, softmax) and the backward pass (loss, gradients, weight updates) of a PyTorch model.</>} />
+      <NeedsModel icon={<Route size={20} />} view='explorer' />
     );
   }
 

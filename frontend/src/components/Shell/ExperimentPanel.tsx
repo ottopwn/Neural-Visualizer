@@ -7,6 +7,7 @@ import { useNetworkStore } from '../../store/networkStore';
 import type { ActivationType, DatasetType, ModelType, RegType } from '../../types';
 import { DatasetPreview } from '../DatasetPreview';
 import { DatasetUpload } from '../DatasetUpload';
+import { useT } from '../../i18n';
 
 const MODEL_TYPES: ModelType[] = ['ANN', 'CNN', 'RNN', 'LSTM', 'GAN', 'Transformer', 'Diffuser'];
 const ACTIVATIONS: ActivationType[] = ['ReLU', 'Tanh', 'Sigmoid', 'LeakyReLU', 'ELU'];
@@ -83,6 +84,7 @@ export function ExperimentPanel() {
   const networkBuilt = useNetworkStore((s) => s.networkBuilt);
   const session = useForgeStore((s) => s.session);
   const { buildStatus, trainStatus, builtSignature, build, train: runTraining } = useExperiment();
+  const t = useT();
   const dirty = networkBuilt && builtSignature !== null && builtSignature !== configSignature();
 
   const real = FORGE_MODELS.has(net.model_type);
@@ -113,109 +115,108 @@ export function ExperimentPanel() {
     <div className="h-full flex flex-col min-h-0">
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="px-4 pt-3 pb-2">
-          <div className="eyebrow">Experiment</div>
+          <div className="eyebrow">{t.panel.experiment}</div>
           {session ? (
             <div className="mt-1.5 text-[12px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
               <span className="font-mono" style={{ color: 'var(--text-primary)' }}>MLP {architectureString(session.structure)}</span>
-              <br />{session.structure.param_count.toLocaleString()} parameters · {session.dataset_name} · epoch {session.epoch}
+              <br />{t.panel.summary(session.structure.param_count.toLocaleString(), session.dataset_name, session.epoch)}
             </div>
           ) : (
             <p className="mt-1.5 text-[12px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-              Configure a network, then <b style={{ color: 'var(--text-primary)' }}>Build</b> creates a real PyTorch model.
+              {t.panel.configure} <b style={{ color: 'var(--text-primary)' }}>{t.panel.build}</b> {t.panel.configureTail}
             </p>
           )}
         </div>
 
-        <Section title="Model">
-          <Field label="Model type">
-            <select className="select-base" value={net.model_type} aria-label="Model type"
+        <Section title={t.panel.model}>
+          <Field label={t.panel.modelType}>
+            <select className="select-base" value={net.model_type} aria-label={t.panel.modelType}
               onChange={(e) => setNet({ model_type: e.target.value as ModelType })}>
               {MODEL_TYPES.map((m) => (
-                <option key={m} value={m}>{m}{FORGE_MODELS.has(m) ? ' — real PyTorch model' : ' — illustrative diagram'}</option>
+                <option key={m} value={m}>{m}{FORGE_MODELS.has(m) ? t.panel.realModel : t.panel.illustrative}</option>
               ))}
             </select>
           </Field>
           {!real && (
             <p className="text-[11.5px] leading-relaxed px-2.5 py-2 rounded-md border" style={{ borderColor: 'var(--tm-whatif)', color: 'var(--text-muted)' }}>
-              <b style={{ color: 'var(--tm-whatif-text)' }}>Illustrative only.</b> {net.model_type} is drawn as a diagram with placeholder values.
-              The Microscope, Time Machine, Pass Explorer and 3D engine need a real <b>ANN</b>.
+              <b style={{ color: 'var(--tm-whatif-text)' }}>{t.panel.illustrativeOnly}</b> {t.panel.illustrativeBody(net.model_type)} <b>ANN</b>.
             </p>
           )}
 
-          <Field label="Hidden layers" value={net.n_layers}>
+          <Field label={t.panel.hiddenLayers} value={net.n_layers}>
             <div className="flex items-center gap-1.5">
-              <button type="button" className="btn-secondary !p-1.5" aria-label="Remove a hidden layer" disabled={net.n_layers <= 1}
+              <button type="button" className="btn-secondary !p-1.5" aria-label={t.panel.removeLayer} disabled={net.n_layers <= 1}
                 onClick={() => setLayers(net.n_layers - 1)}><Minus size={13} /></button>
-              <div className="flex-1 grid grid-cols-5 gap-1" role="group" aria-label="Hidden layers">
+              <div className="flex-1 grid grid-cols-5 gap-1" role="group" aria-label={t.panel.hiddenLayers}>
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button key={n} type="button" className="choice" aria-pressed={net.n_layers === n} onClick={() => setLayers(n)}>{n}</button>
                 ))}
               </div>
-              <button type="button" className="btn-secondary !p-1.5" aria-label="Add a hidden layer" disabled={net.n_layers >= 5}
+              <button type="button" className="btn-secondary !p-1.5" aria-label={t.panel.addLayer} disabled={net.n_layers >= 5}
                 onClick={() => setLayers(net.n_layers + 1)}><Plus size={13} /></button>
             </div>
           </Field>
 
           <div className="space-y-1.5">
             <div className="grid grid-cols-[34px_1fr_1fr] gap-1.5 text-[10.5px] uppercase tracking-wider" style={{ color: 'var(--text-faint)' }}>
-              <span>Layer</span><span>Neurons</span><span>Activation</span>
+              <span>{t.panel.layer}</span><span>{t.panel.neurons}</span><span>{t.panel.activation}</span>
             </div>
             {hidden.map((n, i) => (
               <div key={i} className="grid grid-cols-[34px_1fr_1fr] gap-1.5 items-center">
                 <span className="text-[12px] font-mono" style={{ color: 'var(--text-muted)' }}>L{i + 1}</span>
-                <select className="select-base !py-1 tnum" aria-label={`Neurons in hidden layer ${i + 1}`} value={n}
+                <select className="select-base !py-1 tnum" aria-label={t.panel.neuronsIn(i + 1)} value={n}
                   onChange={(e) => setNeurons(i, +e.target.value)}>
                   {NEURON_OPTIONS.filter((o) => o === n || o - n <= budgetLeft).map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
-                <select className="select-base !py-1" aria-label={`Activation of hidden layer ${i + 1}`} value={net.activations[i]}
+                <select className="select-base !py-1" aria-label={t.panel.activationOf(i + 1)} value={net.activations[i]}
                   onChange={(e) => setActivation(i, e.target.value as ActivationType)}>
                   {ACTIVATIONS.map((a) => <option key={a} value={a}>{a}</option>)}
                 </select>
               </div>
             ))}
             <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
-              {real ? `2 inputs → ${hidden.join(' → ')} → 2 classes (softmax)` : `${hidden.join(' → ')} hidden units`}
-              {' · '}budget {NEURON_BUDGET - budgetLeft}/{NEURON_BUDGET}
+              {real ? t.panel.archReal(hidden.join(' → ')) : t.panel.archDiagram(hidden.join(' → '))}
+              {' · '}{t.panel.budget} {NEURON_BUDGET - budgetLeft}/{NEURON_BUDGET}
             </p>
           </div>
         </Section>
 
-        <Section title="Data">
-          <Field label="Dataset">
-            <Choices label="Dataset" options={DATASETS} value={train.dataset} onChange={(d) => setTrain({ dataset: d })} cols={4} />
+        <Section title={t.panel.data}>
+          <Field label={t.panel.dataset}>
+            <Choices label={t.panel.dataset} options={DATASETS} value={train.dataset} onChange={(d) => setTrain({ dataset: d })} cols={4} />
           </Field>
-          <Field label="Noise" value={`${train.noise}%`}>
-            <input type="range" min={0} max={20} step={5} value={train.noise} aria-label="Dataset noise"
+          <Field label={t.panel.noise} value={`${train.noise}%`}>
+            <input type="range" min={0} max={20} step={5} value={train.noise} aria-label={t.panel.noiseLabel}
               onChange={(e) => setTrain({ noise: +e.target.value })} />
           </Field>
           <DatasetPreview />
           <details className="text-[12px]" open={!!customDataset}>
-            <summary className="cursor-pointer select-none" style={{ color: 'var(--text-muted)' }}>Custom CSV dataset</summary>
+            <summary className="cursor-pointer select-none" style={{ color: 'var(--text-muted)' }}>{t.panel.customCsv}</summary>
             <div className="mt-2">
               <DatasetUpload loaded={!!customDataset} onLoad={(ds) => setCustomDataset(ds)} onClear={() => setCustomDataset(null)} />
               <p className="mt-1.5 text-[11px] leading-relaxed" style={{ color: 'var(--text-faint)' }}>
-                Last column = label (0/1); up to 16 numeric features and 2000 rows. Used by the real ANN on the next Build.
+                {t.panel.csvHelp}
               </p>
             </div>
           </details>
         </Section>
 
-        <Section title="Training">
-          <Field label="Learning rate (Adam)" value={train.learning_rate}>
-            <Choices label="Learning rate" options={LR_VALUES} value={train.learning_rate} onChange={(v) => setTrain({ learning_rate: v })} cols={5} />
+        <Section title={t.panel.training}>
+          <Field label={t.panel.lr} value={train.learning_rate}>
+            <Choices label={t.panel.lrLabel} options={LR_VALUES} value={train.learning_rate} onChange={(v) => setTrain({ learning_rate: v })} cols={5} />
           </Field>
-          <Field label="Batch size" value={train.batch_size}>
-            <Choices label="Batch size" options={BATCH_SIZES} value={train.batch_size} onChange={(v) => setTrain({ batch_size: v })} cols={6} />
+          <Field label={t.panel.batch} value={train.batch_size}>
+            <Choices label={t.panel.batch} options={BATCH_SIZES} value={train.batch_size} onChange={(v) => setTrain({ batch_size: v })} cols={6} />
           </Field>
-          <Field label="Epochs per run" value={train.epochs}>
-            <Choices label="Epochs per run" options={EPOCH_MARKS} value={train.epochs} onChange={(v) => setTrain({ epochs: v })} cols={6} />
+          <Field label={t.panel.epochs} value={train.epochs}>
+            <Choices label={t.panel.epochs} options={EPOCH_MARKS} value={train.epochs} onChange={(v) => setTrain({ epochs: v })} cols={6} />
           </Field>
-          <Field label="Weight regularisation">
+          <Field label={t.panel.reg}>
             <div className="grid grid-cols-[1fr_88px] gap-1.5">
-              <select className="select-base" aria-label="Regularisation type" value={train.reg_type} onChange={(e) => setTrain({ reg_type: e.target.value as RegType })}>
+              <select className="select-base" aria-label={t.panel.regType} value={train.reg_type} onChange={(e) => setTrain({ reg_type: e.target.value as RegType })}>
                 {REG_TYPES.map((r) => <option key={r} value={r}>{r}</option>)}
               </select>
-              <select className="select-base tnum" aria-label="Regularisation rate" value={train.reg_rate} disabled={train.reg_type === 'None'}
+              <select className="select-base tnum" aria-label={t.panel.regRate} value={train.reg_rate} disabled={train.reg_type === 'None'}
                 onChange={(e) => setTrain({ reg_rate: +e.target.value })}>
                 {[0.0001, 0.001, 0.01].map((r) => <option key={r} value={r}>{r}</option>)}
               </select>
@@ -228,18 +229,18 @@ export function ExperimentPanel() {
       <div className="flex-shrink-0 border-t p-3 space-y-2" style={{ borderColor: 'var(--border)', background: 'var(--bg-sidebar)' }}>
         {dirty && (
           <p className="text-[11.5px] flex items-center gap-1.5" style={{ color: 'var(--text-warn)' }}>
-            <RefreshCw size={12} />Settings changed — Build to apply them.
+            <RefreshCw size={12} />{t.panel.dirty}
           </p>
         )}
         <div className="grid grid-cols-2 gap-2">
           <button type="button" className="btn-primary !px-2" onClick={() => void build()} disabled={building} data-tour="build-btn">
             {building ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
-            {networkBuilt ? 'Rebuild' : 'Build'}
+            {networkBuilt ? t.panel.rebuild : t.panel.build}
           </button>
           <button type="button" className="btn-secondary !px-2" onClick={() => void runTraining()} disabled={training || !networkBuilt}
-            title={graphSource === 'model' ? 'Real PyTorch training: Adam, cross-entropy; continues from the current weights' : 'Synthetic curve (no model is trained)'}>
+            title={graphSource === 'model' ? t.panel.trainReal : t.panel.trainSynthetic}>
             {training ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-            {graphSource === 'model' || !networkBuilt ? `Train ${train.epochs}` : 'Simulate'}
+            {graphSource === 'model' || !networkBuilt ? t.panel.train(train.epochs) : t.panel.simulate}
           </button>
         </div>
         <StatusLine status={buildStatus} />

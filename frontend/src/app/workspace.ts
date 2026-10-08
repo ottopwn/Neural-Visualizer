@@ -6,16 +6,27 @@ import { create } from 'zustand';
 
 export type WorkspaceMode = 'network' | 'timemachine' | 'explorer' | '3d' | 'transformer' | 'analysis';
 
-export const MODES: { id: WorkspaceMode; label: string; short: string; hint: string }[] = [
-  { id: 'network', label: 'Network', short: 'Network', hint: 'The live network: real signal on the probe input. Click any neuron, layer or connection.' },
-  { id: 'timemachine', label: 'Time Machine', short: 'Time', hint: 'Travel through stored training checkpoints and compare epochs.' },
-  { id: 'explorer', label: 'Forward / Backward', short: 'Pass', hint: 'Step through one forward and backward pass with every real number.' },
-  { id: '3d', label: '3D', short: '3D', hint: 'The real network in 3D: activations, weights, gradients and signal flow.' },
-  { id: 'transformer', label: 'Transformer Lab', short: 'Transformer', hint: 'A small, real Transformer trained locally: tokens, attention, next-token probabilities.' },
-  { id: 'analysis', label: 'Analysis', short: 'More', hint: 'Secondary analyses, in-browser tools, illustrative diagrams and code export.' },
-];
+/** Workspace order in the top bar; labels and hints come from the i18n dictionary (modes.*). */
+export const MODES: WorkspaceMode[] = ['network', 'timemachine', 'explorer', '3d', 'transformer', 'analysis'];
+
+/**
+ * Explore: the simplified beginner path (Build → Train → Understand) on the
+ * same real model.  Lab: every instrument and panel.
+ */
+export type Experience = 'explore' | 'lab';
+export const EXPERIENCE_KEY = 'nf-experience';
+
+function readExperience(): Experience {
+  try {
+    const v = localStorage.getItem(EXPERIENCE_KEY);
+    if (v === 'explore' || v === 'lab') return v;
+  } catch { /* storage unavailable */ }
+  return 'explore';
+}
 
 interface WorkspaceState {
+  experience: Experience;
+  setExperience: (e: Experience) => void;
   mode: WorkspaceMode;
   leftOpen: boolean;
   rightOpen: boolean;
@@ -28,12 +39,21 @@ interface WorkspaceState {
 }
 
 export const useWorkspace = create<WorkspaceState>((set) => ({
+  experience: readExperience(),
+  setExperience: (experience) => {
+    try { localStorage.setItem(EXPERIENCE_KEY, experience); } catch { /* storage unavailable */ }
+    set({ experience });
+  },
   mode: 'network',
   leftOpen: true,
   rightOpen: true,
   welcomeOpen: false,
   setWelcomeOpen: (welcomeOpen) => set({ welcomeOpen }),
-  setMode: (mode) => set({ mode }),
+  // Choosing a Lab instrument (from a demo, the tour or a link) leaves Explore.
+  setMode: (mode) => {
+    try { localStorage.setItem(EXPERIENCE_KEY, 'lab'); } catch { /* storage unavailable */ }
+    set({ mode, experience: 'lab' });
+  },
   setLeftOpen: (leftOpen) => set({ leftOpen }),
   setRightOpen: (rightOpen) => set({ rightOpen }),
 }));

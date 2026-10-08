@@ -73,8 +73,7 @@ export function NetworkWorkspace() {
   if (!session && built && graphSource === 'illustrative') return <IllustrativeNetwork />;
   if (!session) {
     return (
-      <NeedsModel icon={<Network size={20} />} title="Step inside a real neural network"
-        body={<>Build a small PyTorch network, train it, then click any neuron to see the exact numbers it computes — and change them.</>} />
+      <NeedsModel icon={<Network size={20} />} view='network' />
     );
   }
 

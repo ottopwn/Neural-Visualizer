@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { tr } from '../i18n';
 import type { TransformerInfo, TransformerTrace } from './transformerTypes';
 import type {
   ComponentHistory, ComponentRef, ComputationTrace, Comparison, EpochComparison, ExperimentRequest, ForgeGraph, Frame,
@@ -94,8 +95,8 @@ export function errorMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
     const detail = err.response?.data?.detail;
     if (typeof detail === 'string') return detail;
-    if (!err.response) return 'Backend unreachable — start FastAPI on :8000';
-    return `Request failed (${err.response.status})`;
+    if (!err.response) return tr().errors.backend;
+    return tr().errors.request(err.response.status);
   }
   return err instanceof Error ? err.message : String(err);
 }

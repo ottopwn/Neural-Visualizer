@@ -79,8 +79,7 @@ export function TimeMachineView() {
 
   if (!session) {
     return (
-      <NeedsModel icon={<History size={20} />} title="Watch a network learn"
-        body={<>Every training epoch stores an immutable checkpoint of the real model. Build and train a network, then travel through its learning process here.</>} />
+      <NeedsModel icon={<History size={20} />} view='timemachine' />
     );
   }
   const lab = mode === 'lab';

@@ -4,6 +4,7 @@ import { useForgeStore } from '../../forge/store';
 import { Inspector } from '../Forge/Inspector';
 import { ProbePicker } from '../Forge/ProbePicker';
 import { WhatIfPanel } from '../Forge/WhatIfPanel';
+import { useT } from '../../i18n';
 
 function Block({ title, icon, children, defaultOpen = true, badge, testId }: {
   title: string; icon: ReactNode; children: ReactNode; defaultOpen?: boolean; badge?: ReactNode; testId?: string;
@@ -31,29 +32,30 @@ function Block({ title, icon, children, defaultOpen = true, badge, testId }: {
 export function InspectorPanel() {
   const session = useForgeStore((s) => s.session);
   const nIv = useForgeStore((s) => s.interventions.length);
+  const t = useT();
 
   if (!session) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-center gap-2 px-6" style={{ color: 'var(--text-muted)' }}>
         <Microscope size={22} style={{ color: 'var(--text-faint)' }} aria-hidden="true" />
-        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Neural Microscope</p>
-        <p className="text-xs leading-relaxed">Build a real ANN to inspect probe inputs, predictions, what-if edits and any neuron, layer or connection.</p>
+        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{t.inspector.microscope}</p>
+        <p className="text-xs leading-relaxed">{t.inspector.empty}</p>
       </div>
     );
   }
 
   return (
-    <div className="h-full overflow-y-auto" aria-label="Inspector">
-      <Block title="Probe input" icon={<Crosshair size={13} />} testId="probe-block">
+    <div className="h-full overflow-y-auto" aria-label={t.topbar.inspector}>
+      <Block title={t.inspector.probe} icon={<Crosshair size={13} />} testId="probe-block">
         <ProbePicker />
       </Block>
-      <Block title={nIv ? 'What-if' : 'Prediction'} icon={<FlaskConical size={13} />} testId="prediction-block"
-        badge={nIv ? <span className="badge-orange">{nIv} edit{nIv > 1 ? 's' : ''}</span> : undefined}>
+      <Block title={nIv ? t.inspector.whatIf : t.inspector.prediction} icon={<FlaskConical size={13} />} testId="prediction-block"
+        badge={nIv ? <span className="badge-orange">{t.inspector.edits(nIv)}</span> : undefined}>
         <WhatIfPanel />
       </Block>
       <div className="px-3 pt-2.5 pb-1 flex items-center gap-2">
         <Microscope size={13} style={{ color: 'var(--text-faint)' }} aria-hidden="true" />
-        <span className="eyebrow">Neural Microscope</span>
+        <span className="eyebrow">{t.inspector.microscope}</span>
       </div>
       <Inspector structure={session.structure} embedded />
     </div>

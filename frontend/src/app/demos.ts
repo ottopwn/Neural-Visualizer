@@ -9,13 +9,13 @@
 import { create } from 'zustand';
 import * as api from '../forge/api';
 import { useExplorer } from '../forge/explorer';
-import { pct } from '../forge/format';
 import { useForgeStore } from '../forge/store';
 import { useTimeMachine } from '../forge/timeMachine';
 import type { ComponentRef, ComputationTrace } from '../forge/types';
 import { useNetworkStore } from '../store/networkStore';
 import { useExperiment } from './experiment';
 import { useWorkspace, type WorkspaceMode } from './workspace';
+import { tr } from '../i18n';
 
 /** The demo model: small enough to read, large enough to be interesting. */
 export const DEMO_SETUP = {
@@ -53,13 +53,13 @@ export async function buildDemoModel(): Promise<void> {
   });
   ns.setTrainingConfig({ dataset: DEMO_SETUP.dataset, noise: DEMO_SETUP.noise, learning_rate: DEMO_SETUP.learning_rate, epochs: DEMO_SETUP.epochs, batch_size: 32, reg_type: 'None' });
   const ok = await useExperiment.getState().build();
-  if (!ok) throw new Error(useExperiment.getState().buildStatus.message ?? 'Build failed');
+  if (!ok) throw new Error(useExperiment.getState().buildStatus.message ?? tr().status.buildFailed);
   await waitIdle();
 }
 
 export async function trainDemoModel(): Promise<void> {
   const ok = await useExperiment.getState().train(DEMO_SETUP.epochs);
-  if (!ok) throw new Error(useExperiment.getState().trainStatus.message ?? 'Training failed');
+  if (!ok) throw new Error(useExperiment.getState().trainStatus.message ?? tr().status.trainFailed);
   await waitIdle();
 }
 
@@ -131,17 +131,17 @@ function setMode(m: WorkspaceMode) {
 
 // ── one-click demos ─────────────────────────────────────────────────────────
 
+export type DemoId = 'learn' | 'neuron' | 'break' | 'signal' | '3d';
+
+/** A one-click demo; its title and description live in the i18n dictionary (demos[id]). */
 export interface Demo {
-  id: string;
-  title: string;
-  body: string;
+  id: DemoId;
   run: () => Promise<void>;
 }
 
 export const DEMOS: Demo[] = [
   {
-    id: 'learn', title: 'Watch a network learn',
-    body: 'Builds and trains a real 2→8→8→2 network on the Circle data, then replays its training checkpoint by checkpoint in the Time Machine.',
+    id: 'learn',
     run: async () => {
       await buildDemoModel();
       await trainDemoModel();
@@ -151,8 +151,7 @@ export const DEMOS: Demo[] = [
     },
   },
   {
-    id: 'neuron', title: 'Inspect a neuron',
-    body: 'Selects the most active hidden neuron for a sample and opens the Microscope: its inputs, weights, weighted sum, activation and gradients.',
+    id: 'neuron',
     run: async () => {
       await ensureTrained();
       await pickUncertainProbe();
@@ -162,8 +161,7 @@ export const DEMOS: Demo[] = [
     },
   },
   {
-    id: 'break', title: 'Break the network',
-    body: 'Tries disabling every hidden neuron, keeps the one whose loss hurts accuracy most, and shows the real predictions before and after.',
+    id: 'break',
     run: async () => {
       await ensureTrained();
       await forge().reset();
@@ -178,8 +176,7 @@ export const DEMOS: Demo[] = [
     },
   },
   {
-    id: 'signal', title: 'Follow a signal',
-    body: 'Plays one input through the real forward pass: every weighted sum, activation, logit and probability — then you can run it backwards.',
+    id: 'signal',
     run: async () => {
       await ensureTrained();
       setMode('explorer');
@@ -190,8 +187,7 @@ export const DEMOS: Demo[] = [
     },
   },
   {
-    id: '3d', title: 'See it in 3D',
-    body: 'Opens the real network in 3D and follows the backward pass: gradients flowing from the loss to every weight.',
+    id: '3d',
     run: async () => {
       await ensureTrained();
       setMode('3d');
@@ -211,7 +207,7 @@ export const useGuide = create<GuideState>((set, get) => ({
   error: null,
   run: async (demo) => {
     if (get().running) return;
-    set({ running: demo.title, error: null });
+    set({ running: demo.id, error: null });
     try {
       await demo.run();
       set({ running: null });
@@ -225,7 +221,7 @@ export const useGuide = create<GuideState>((set, get) => ({
 // ── presentation journey ────────────────────────────────────────────────────
 
 export interface JourneyStep {
-  title: string;
+  title: () => string;
   /** Narration, built from the real state after `enter` completed. */
   text: () => string;
   enter: () => Promise<void>;
@@ -239,23 +235,21 @@ function history() {
 function selectedName(): string {
   const sel = forge().selection;
   const t = forge().trace;
-  if (!sel || sel.kind !== 'neuron' || !t) return 'the selected neuron';
+  if (!sel || sel.kind !== 'neuron' || !t) return tr().journey.selectedFallback;
   return sel.layer === 0 ? t.feature_names[sel.index] : t.layers[sel.layer - 1].neuron_names[sel.index];
 }
 
 export const JOURNEY: JourneyStep[] = [
   {
-    title: 'Initialise a real network',
+    title: () => tr().journey.init,
     enter: async () => { setMode('network'); await buildDemoModel(); },
     text: () => {
       const s = forge().session;
-      return s
-        ? `A real PyTorch MLP with ${s.structure.param_count} parameters, randomly initialised, looking at ${s.dataset_X.length} points of the ${s.dataset_name} dataset. Edges show the real signal w·a on one input.`
-        : 'Building…';
+      return s ? tr().journey.initText(s.structure.param_count, s.dataset_X.length, s.dataset_name) : tr().journey.building;
     },
   },
   {
-    title: 'Watch it train',
+    title: () => tr().journey.train,
     enter: async () => {
       if ((forge().session?.epoch ?? 0) === 0) await trainDemoModel(); // going back does not retrain
       setMode('timemachine');
@@ -265,12 +259,12 @@ export const JOURNEY: JourneyStep[] = [
     text: () => {
       const { first, last } = history();
       return first && last
-        ? `${last.epoch} epochs of real Adam training. Accuracy went from ${pct(first.accuracy)} at epoch 0 to ${pct(last.accuracy)}; the loss from ${first.loss.toFixed(3)} to ${last.loss.toFixed(3)}. Every epoch was stored as a checkpoint.`
-        : 'Training…';
+        ? tr().journey.trainText(last.epoch, first.accuracy, last.accuracy, first.loss, last.loss)
+        : tr().journey.training;
     },
   },
   {
-    title: 'Rewind with the Time Machine',
+    title: () => tr().journey.rewind,
     enter: async () => {
       setMode('timemachine');
       const tm = useTimeMachine.getState();
@@ -281,13 +275,11 @@ export const JOURNEY: JourneyStep[] = [
     text: () => {
       const e = useTimeMachine.getState().cursor;
       const row = forge().session?.history.find((r) => r.epoch === e);
-      return row
-        ? `Back at epoch ${e}: the decision regions, accuracy (${pct(row.accuracy)}) and every weight are the stored checkpoint, not a reconstruction.`
-        : 'Travelling…';
+      return row && e !== null ? tr().journey.rewindText(e, row.accuracy) : tr().journey.travelling;
     },
   },
   {
-    title: 'Select a neuron',
+    title: () => tr().journey.select,
     enter: async () => {
       await useTimeMachine.getState().goLive();
       await forge().reset();
@@ -300,41 +292,41 @@ export const JOURNEY: JourneyStep[] = [
       lastSearch = found && found.ref.kind === 'neuron' ? { name: selectedName(), before: found.before, after: found.after, tried: found.tried } : null;
     },
     text: () => (lastSearch
-      ? `Back to the live model, on the sample it is least sure about. Neural Forge disabled each of the ${lastSearch.tried} hidden neurons in turn: ${lastSearch.name} matters most. The Microscope on the right shows what it computes.`
-      : `Back to the live model. The Microscope on the right shows what ${selectedName()} computes.`),
+      ? tr().journey.selectSearch(lastSearch.tried, lastSearch.name)
+      : tr().journey.selectPlain(selectedName())),
   },
   {
-    title: 'Inspect its real values',
+    title: () => tr().journey.inspect,
     enter: async () => { forge().setMode('lab'); },
     text: () => {
       const sel = forge().selection;
       const t = forge().trace;
-      if (!sel || sel.kind !== 'neuron' || !t || sel.layer === 0) return 'Lab mode shows the equations and raw numbers.';
+      if (!sel || sel.kind !== 'neuron' || !t || sel.layer === 0) return tr().journey.inspectFallback;
       const d = t.layers[sel.layer - 1];
-      return `Lab mode: ${selectedName()} computes z = Σ w·a + b = ${d.z[sel.index].toFixed(4)} and outputs ${d.activation}(z) = ${d.a[sel.index].toFixed(4)}. Its gradient dL/dz on this input is ${d.grad_z[sel.index].toFixed(4)}.`;
+      return tr().journey.inspectText(selectedName(), d.z[sel.index].toFixed(4), d.activation, d.a[sel.index].toFixed(4), d.grad_z[sel.index].toFixed(4));
     },
   },
   {
-    title: 'Disable it',
+    title: () => tr().journey.disable,
     enter: async () => {
       const sel = forge().selection;
       if (sel && sel.kind === 'neuron' && sel.layer > 0 && !forge().interventions.length) {
         await forge().addIntervention({ type: 'ablate_neuron', layer: sel.layer, index: sel.index });
       }
     },
-    text: () => `What-if: ${selectedName()}'s output is forced to 0 for everything downstream. The stored weights are untouched — this is an overlay on the forward pass.`,
+    text: () => tr().journey.disableText(selectedName()),
   },
   {
-    title: 'See the output change',
+    title: () => tr().journey.change,
     enter: async () => { setMode('network'); await waitIdle(); },
     text: () => {
       const c = forge().comparison;
-      if (!c) return 'Comparing…';
-      return `Dataset accuracy ${pct(c.baseline.dataset_accuracy)} → ${pct(c.intervened.dataset_accuracy)}; ${pct(c.dataset_flip_fraction)} of the predictions changed${c.prediction_changed ? ', including this probe' : ''}. Undo or Reset restores the original network.`;
+      if (!c) return tr().journey.comparing;
+      return tr().journey.changeText(c.baseline.dataset_accuracy, c.intervened.dataset_accuracy, c.dataset_flip_fraction, c.prediction_changed);
     },
   },
   {
-    title: 'Follow a forward pass',
+    title: () => tr().journey.forward,
     enter: async () => {
       await forge().reset();
       await waitIdle();
@@ -347,12 +339,12 @@ export const JOURNEY: JourneyStep[] = [
     text: () => {
       const t = forge().trace;
       return t
-        ? `The edit is reset. One input (${t.input.map((v) => v.toFixed(2)).join(', ')}) flows through the network step by step: weighted sums, activations, logits and softmax — ending at P(${t.class_names[t.predicted_class]}) = ${pct(t.probabilities[t.predicted_class])}.`
-        : 'Loading the pass…';
+        ? tr().journey.forwardText(t.input.map((v) => v.toFixed(2)).join(', '), t.class_names[t.predicted_class], t.probabilities[t.predicted_class])
+        : tr().journey.loadingPass;
     },
   },
   {
-    title: 'Follow the gradient flow',
+    title: () => tr().journey.backward,
     enter: async () => {
       setMode('explorer');
       const ex = useExplorer.getState();
@@ -362,18 +354,16 @@ export const JOURNEY: JourneyStep[] = [
     },
     text: () => {
       const t = forge().trace;
-      return t
-        ? `Backward: the loss (${t.loss.toFixed(4)}) is differentiated through every layer — dL/dlogits = p − y, then Wᵀ·δ and the activation slopes — down to every weight's gradient.`
-        : '…';
+      return t ? tr().journey.backwardText(t.loss.toFixed(4)) : '…';
     },
   },
   {
-    title: 'The real network in 3D',
+    title: () => tr().journey.threeD,
     enter: async () => {
       useExplorer.getState().pause();
       setMode('3d');
     },
-    text: () => 'The same model in 3D: spheres are neurons coloured by their real activation, lines are weights carrying real signal. Orbit, zoom, click any neuron — the Microscope follows.',
+    text: () => tr().journey.threeDText,
   },
 ];
 

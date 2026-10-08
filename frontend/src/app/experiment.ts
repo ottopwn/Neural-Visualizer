@@ -7,6 +7,7 @@ import * as api from '../api/client';
 import * as forgeApi from '../forge/api';
 import { useForgeStore } from '../forge/store';
 import { useNetworkStore } from '../store/networkStore';
+import { tr } from '../i18n';
 import type { BoundaryPair, SessionSummary } from '../forge/types';
 import type { DecisionBoundaryData, TrainingResult } from '../types';
 
@@ -108,7 +109,7 @@ export const useExperiment = create<ExperimentState>((set, get) => {
           if (err) throw new Error(err);
           store.setGraphSource('model');
           store.setTrainingResult(historyToResult(summary));
-          message = `Real model · ${summary.structure.param_count} parameters · untrained`;
+          message = tr().status.builtReal(summary.structure.param_count);
         } else {
           await useForgeStore.getState().setSession(null);
           const graph = await api.buildNetwork(config);
@@ -117,7 +118,7 @@ export const useExperiment = create<ExperimentState>((set, get) => {
           store.setForwardSteps(fwd.steps);
           store.setBackwardSteps(bwd.steps);
           store.setGraphSource('illustrative');
-          message = `${config.model_type} diagram · ${graph.nodes.length} nodes (illustrative)`;
+          message = tr().status.builtDiagram(config.model_type, graph.nodes.length);
         }
         store.setNetworkBuilt(true);
         set({ builtSignature: configSignature() });
@@ -152,7 +153,7 @@ export const useExperiment = create<ExperimentState>((set, get) => {
           const boundary = useForgeStore.getState().comparison?.boundary;
           if (boundary) store.setDecisionBoundary(boundaryToData(boundary, summary));
           const last = new_rows[new_rows.length - 1];
-          settle('trainStatus', { type: 'success', message: `Epoch ${summary.epoch} · accuracy ${(last.accuracy * 100).toFixed(1)}%` });
+          settle('trainStatus', { type: 'success', message: tr().status.trained(summary.epoch, last.accuracy) });
           return true;
         } catch (err) {
           settle('trainStatus', { type: 'error', message: forgeApi.errorMessage(err) });
@@ -167,7 +168,7 @@ export const useExperiment = create<ExperimentState>((set, get) => {
         ]);
         store.setTrainingResult(result);
         store.setDecisionBoundary(boundary);
-        settle('trainStatus', { type: 'success', message: `${result.epochs.length} epochs (synthetic curve)` });
+        settle('trainStatus', { type: 'success', message: tr().status.simulated(result.epochs.length) });
         return true;
       } catch (err) {
         settle('trainStatus', { type: 'error', message: forgeApi.errorMessage(err) });

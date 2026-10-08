@@ -140,8 +140,7 @@ export function Forge3DView() {
 
   if (!session) {
     return (
-      <NeedsModel icon={<Box size={20} />} title="See the real network in 3D"
-        body={<>Every sphere is a real neuron, every line a real weight. Colours come from the model's activations, weights or gradients on the probe input.</>} />
+      <NeedsModel icon={<Box size={20} />} view='3d' />
     );
   }
 

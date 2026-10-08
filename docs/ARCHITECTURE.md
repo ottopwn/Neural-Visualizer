@@ -341,6 +341,24 @@ and its narration is a function evaluated on the resulting state. Two choices ar
 the sample with the lowest predicted-class probability in the real frame, and the neuron to "break" is found by
 running one real what-if comparison per hidden neuron and keeping the largest accuracy drop.
 
+## 17. Stability, languages and the Explore experience (Neural Forge 2.0, M0–M1)
+
+- **Browser translators.** `index.html` sets `translate="no"` and `<meta name="google" content="notranslate">`.
+  Chrome's translator rewrites text nodes behind React's back; React then throws on `removeChild`/`insertBefore`
+  and, without an error boundary, unmounts the whole tree (the "black screen"). `components/ErrorBoundary.tsx`
+  now wraps the app (reload) and each workspace / side panel (retry, reset on workspace change); it recognises
+  translator DOM errors and says so. `e2e/stability.spec.ts` rewrites every text node like a translator and checks
+  the UI survives.
+- **i18n** (`src/i18n/`). `en.ts` is the reference dictionary and defines the `Dict` type; `it.ts` must match it
+  (checked by `tsc`). Values are strings or functions of real values (never invented numbers). Components use
+  `useT()`; plain modules (status messages, demo/tour narration, API errors) use `tr()`. The choice is stored under
+  `nf-lang`, defaults to the browser language and is mirrored to `<html lang>`. No i18n library is used.
+- **Experience** (`app/workspace.ts`): `explore | lab`, stored under `nf-experience`, default `explore`.
+  `components/Explore/ExploreView.tsx` is a full-width Build → Train → Understand path that reuses the real
+  actions (`useExperiment.build/train`), the Time Machine store (checkpoint slider, frame with decision regions and
+  mistakes) and the what-if engine (`mostDamagingNeuron`, `ablate_neuron`). Choosing any Laboratory instrument
+  (`setMode`, used by demos, the tour and Explore's "go deeper" buttons) switches to `lab`, keeping the same model.
+
 ## Tests
 
 ```bash

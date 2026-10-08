@@ -1,7 +1,9 @@
-import { FlaskRound, GraduationCap, Moon, MonitorPlay, PanelLeft, PanelRight, Sparkles, Sun } from 'lucide-react';
+import { Compass, FlaskConical, FlaskRound, GraduationCap, Languages, Moon, MonitorPlay, PanelLeft, PanelRight, Sparkles, Sun } from 'lucide-react';
 import { MODES, useWorkspace, type WorkspaceMode } from '../../app/workspace';
 import { useTheme } from '../../contexts/theme';
 import { useForgeStore } from '../../forge/store';
+import { useI18n, useT } from '../../i18n';
+import { LANGS, type Lang } from '../../i18n/lang';
 import { ForgeStatePill } from '../Forge/TimeMachine/StatePill';
 
 /** Small mark: three layers of nodes. Static, no decoration beyond the logo. */
@@ -37,65 +39,92 @@ export function TopBar({ onDemo, onPresent, availableModes }: Props) {
   const setRightOpen = useWorkspace((s) => s.setRightOpen);
   const expMode = useForgeStore((s) => s.mode);
   const setExpMode = useForgeStore((s) => s.setMode);
+  const experience = useWorkspace((s) => s.experience);
+  const setExperience = useWorkspace((s) => s.setExperience);
+  const lang = useI18n((s) => s.lang);
+  const setLang = useI18n((s) => s.setLang);
+  const t = useT();
+  const lab = experience === 'lab';
 
   return (
     <header className="flex items-center gap-3 px-3 h-12 flex-shrink-0 border-b"
       style={{ borderColor: 'var(--border)', background: 'var(--bg-sidebar)' }}>
-      <button type="button" className="btn-ghost p-1.5" aria-label={leftOpen ? 'Hide experiment panel' : 'Show experiment panel'}
-        aria-pressed={leftOpen} title="Experiment panel" onClick={() => setLeftOpen(!leftOpen)}>
-        <PanelLeft size={16} />
-      </button>
+      {lab && (
+        <button type="button" className="btn-ghost p-1.5" aria-label={leftOpen ? t.topbar.hideExperiment : t.topbar.showExperiment}
+          aria-pressed={leftOpen} title={t.topbar.experimentPanel} onClick={() => setLeftOpen(!leftOpen)}>
+          <PanelLeft size={16} />
+        </button>
+      )}
 
       <div className="flex items-center gap-2 flex-shrink-0 pr-2">
         <BrandMark />
         <div className="leading-none">
           <div className="text-[14px] font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>Neural Forge</div>
-          <div className="text-[10.5px] mt-0.5 hidden 2xl:block" style={{ color: 'var(--text-faint)' }}>Inspect. Intervene. Understand.</div>
+          <div className="text-[10.5px] mt-0.5 hidden 2xl:block" style={{ color: 'var(--text-faint)' }}>{t.topbar.tagline}</div>
         </div>
       </div>
 
-      <nav className="flex items-center gap-0.5 min-w-0 overflow-x-auto" role="tablist" aria-label="Workspace">
-        {MODES.filter((m) => availableModes.has(m.id)).map((m) => {
-          const active = mode === m.id;
+      <div className="seg flex-shrink-0" role="group" aria-label={t.experience.label}>
+        <button type="button" aria-pressed={!lab} onClick={() => setExperience('explore')} title={t.experience.exploreHint}>
+          <span className="inline-flex items-center gap-1"><Compass size={13} />{t.experience.explore}</span>
+        </button>
+        <button type="button" aria-pressed={lab} onClick={() => setExperience('lab')} title={t.experience.labHint}>
+          <span className="inline-flex items-center gap-1"><FlaskConical size={13} />{t.experience.lab}</span>
+        </button>
+      </div>
+
+      {lab && <nav className="flex items-center gap-0.5 min-w-0 overflow-x-auto" role="tablist" aria-label={t.topbar.workspace}>
+        {MODES.filter((id) => availableModes.has(id)).map((id) => {
+          const active = mode === id;
+          const m = t.modes[id];
           return (
-            <button key={m.id} type="button" role="tab" aria-selected={active} title={m.hint}
-              onClick={() => setMode(m.id)}
+            <button key={id} type="button" role="tab" aria-selected={active} title={m.hint}
+              onClick={() => setMode(id)}
               className="relative px-2.5 h-12 text-[13px] font-medium whitespace-nowrap transition-colors"
               style={{ color: active ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-              <span className="hidden xl:inline">{m.label}</span>
-              <span className="xl:hidden">{m.short}</span>
+              <span className="hidden 2xl:inline">{m.label}</span>
+              <span className="2xl:hidden">{m.short}</span>
               {active && <span className="absolute left-2 right-2 bottom-0 h-[2px] rounded-full" style={{ background: 'var(--accent)' }} />}
             </button>
           );
         })}
-      </nav>
+      </nav>}
 
       <div className="ml-auto flex items-center gap-2 flex-shrink-0">
-        <ForgeStatePill />
-        <div className="seg" role="group" aria-label="Explanation level">
-          <button type="button" aria-pressed={expMode === 'learn'} onClick={() => setExpMode('learn')}
-            title="Learn: plain-language explanations generated from the real values">
-            <span className="inline-flex items-center gap-1"><GraduationCap size={13} />Learn</span>
-          </button>
-          <button type="button" aria-pressed={expMode === 'lab'} onClick={() => setExpMode('lab')}
-            title="Lab: equations, tensor shapes, gradients and raw numbers">
-            <span className="inline-flex items-center gap-1"><FlaskRound size={13} />Lab</span>
-          </button>
-        </div>
-        <button type="button" className="btn-secondary !py-1.5 !px-2.5 !text-xs" onClick={onDemo} title="Guided demos that run the real application">
-          <Sparkles size={13} /><span className="hidden lg:inline">Demos</span>
+        {lab && <ForgeStatePill />}
+        {lab && (
+          <div className="seg" role="group" aria-label={t.topbar.explanationLevel}>
+            <button type="button" aria-pressed={expMode === 'learn'} onClick={() => setExpMode('learn')} title={t.topbar.learnHint}>
+              <span className="inline-flex items-center gap-1"><GraduationCap size={13} />{t.topbar.learn}</span>
+            </button>
+            <button type="button" aria-pressed={expMode === 'lab'} onClick={() => setExpMode('lab')} title={t.topbar.labLevelHint}>
+              <span className="inline-flex items-center gap-1"><FlaskRound size={13} />{t.topbar.labLevel}</span>
+            </button>
+          </div>
+        )}
+        <button type="button" className="btn-secondary !py-1.5 !px-2.5 !text-xs" onClick={onDemo} title={t.topbar.demosHint}>
+          <Sparkles size={13} /><span className="hidden lg:inline">{t.topbar.demos}</span>
         </button>
-        <button type="button" className="btn-secondary !py-1.5 !px-2.5 !text-xs" onClick={onPresent} title="Presentation mode: a curated 10-step journey">
-          <MonitorPlay size={13} /><span className="hidden lg:inline">Present</span>
+        <button type="button" className="btn-secondary !py-1.5 !px-2.5 !text-xs" onClick={onPresent} title={t.topbar.presentHint}>
+          <MonitorPlay size={13} /><span className="hidden lg:inline">{t.topbar.present}</span>
         </button>
+        <label className="flex items-center gap-1 text-[12px]" style={{ color: 'var(--text-muted)' }} title={t.lang.label}>
+          <Languages size={14} aria-hidden="true" />
+          <select className="select-base !py-1 !pl-1.5 !pr-6 !text-xs !w-auto" aria-label={t.lang.label} value={lang}
+            onChange={(e) => setLang(e.target.value as Lang)}>
+            {LANGS.map((l) => <option key={l} value={l}>{t.lang[l]}</option>)}
+          </select>
+        </label>
         <button type="button" className="btn-ghost p-1.5" onClick={() => setTheme(theme === 'paper' ? 'dark' : 'paper')}
-          aria-label={theme === 'paper' ? 'Switch to dark theme' : 'Switch to Paper (light) theme'} title="Theme">
+          aria-label={theme === 'paper' ? t.topbar.toDark : t.topbar.toPaper} title={t.topbar.theme}>
           {theme === 'paper' ? <Moon size={16} /> : <Sun size={16} />}
         </button>
-        <button type="button" className="btn-ghost p-1.5" aria-label={rightOpen ? 'Hide inspector' : 'Show inspector'}
-          aria-pressed={rightOpen} title="Inspector" onClick={() => setRightOpen(!rightOpen)}>
-          <PanelRight size={16} />
-        </button>
+        {lab && (
+          <button type="button" className="btn-ghost p-1.5" aria-label={rightOpen ? t.topbar.hideInspector : t.topbar.showInspector}
+            aria-pressed={rightOpen} title={t.topbar.inspector} onClick={() => setRightOpen(!rightOpen)}>
+            <PanelRight size={16} />
+          </button>
+        )}
       </div>
     </header>
   );
